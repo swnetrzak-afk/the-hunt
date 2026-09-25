@@ -6,6 +6,10 @@ The tracker started as a simple application log. The Discover pipeline was added
 
 Designed for personal use — one instance per deploy, configured to your background and preferences. The infrastructure is generic. The configuration is what makes it yours.
 
+<img width="1758" height="1073" alt="the hunt — job tracker-screenshot" src="https://github.com/user-attachments/assets/4981837b-ee1e-411b-881f-87c00a02c588" />
+
+<img width="1758" height="1073" alt="the hunt — job discover-screenshot" src="https://github.com/user-attachments/assets/8bbcb066-d4b5-409e-aa87-13d86149af12" />
+
 ---
 
 ## Contents
