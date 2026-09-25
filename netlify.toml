@@ -1,0 +1,49 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# index.html contains the Supabase publishable (anon) key,
+# which is intentionally public — RLS enforces data access, not this key.
+# Exclude it from secrets scanning to prevent false positives.
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = "index.html"
+
+# Pretty URL: /extract-jd → /.netlify/functions/extract-jd
+[[redirects]]
+  from = "/extract-jd"
+  to = "/.netlify/functions/extract-jd"
+  status = 200
+
+# On-demand job re-score
+[[redirects]]
+  from = "/score-job"
+  to = "/.netlify/functions/score-job"
+  status = 200
+
+# Stage 1 of the manual triage flow: company quick scan
+[[redirects]]
+  from = "/company-scan"
+  to = "/.netlify/functions/company-scan"
+  status = 200
+
+# Manual trigger for the fetch pipeline (returns 202 immediately, runs async).
+# Targets the pure background function directly — it is NOT scheduled, so
+# HTTP invocation is allowed (a scheduled function would return 403 here).
+[[redirects]]
+  from = "/run-fetch"
+  to = "/.netlify/functions/fetch-jobs-background"
+  status = 200
+
+# Company discovery — expands tracked_companies (returns 202, runs async).
+# Background function so web_search + ATS probing have the 15-min budget.
+[[redirects]]
+  from = "/discover-companies"
+  to = "/.netlify/functions/discover-companies-background"
+  status = 200
+
+# Nightly scheduled trigger — 9am UTC (5am ET). This thin scheduled function
+# async-fires fetch-jobs-background; the heavy pipeline runs there (15-min limit).
+# The schedule lives on nightly-fetch, never on the background function itself:
+# a function that is both scheduled AND background silently no-ops on Netlify.
+[functions."nightly-fetch"]
+  schedule = "0 9 * * *"

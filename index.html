@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>the hunt — job tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#131d27;--surface:#1b2733;--surface2:#151f2a;--border:#2b3742;--border-strong:#3a4854;
+    --text:#e9e3d6;--text-muted:#94a0ad;--text-light:#6c7885;
+    --accent:#ce8a4b;--accent-light:#213140;--accent-dark:#b5713a;
+    --s-applied:#6a9cc0;--s-interviewing:#9a8dc0;--s-rejected:#c07a7a;--s-declined:#9aad7e;--s-lost:#94a0ad;
+    --green:#7fb08c;--green-light:#16281f;
+    --shadow:0 1px 3px rgba(0,0,0,.45),0 4px 12px rgba(0,0,0,.3);
+    --shadow-lg:0 4px 16px rgba(0,0,0,.5),0 8px 32px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:#0f1117;background:linear-gradient(150deg,#0f1117,#16232f) fixed;color:var(--text);min-height:100vh;font-size:14px}
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo{font-family:'Instrument Serif',serif;font-size:22px;letter-spacing:-.02em}.logo span{color:var(--accent);font-style:italic}
+  .subtitle{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-light);font-weight:300;margin-left:12px}
+  .header-left{display:flex;align-items:baseline}.header-actions{display:flex;gap:8px;align-items:center}
+
+  /* ── TABS ── */
+  .tab-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:0;position:sticky;top:57px;z-index:99}
+  .tab{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;color:var(--text-muted);padding:10px 16px;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s;letter-spacing:.04em;text-transform:uppercase;user-select:none}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  .stats-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:24px;align-items:center;overflow-x:auto}
+  .stat{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .stat-num{font-family:'DM Mono',monospace;font-size:15px;font-weight:500}
+  .stat-label{font-size:12px;color:var(--text-muted)}
+  .stat-div{width:1px;height:20px;background:var(--border);flex-shrink:0}
+  .main{padding:20px 24px;max-width:1400px}
+  .toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+  .search-input{flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;transition:border-color .15s}
+  .search-input:focus{border-color:var(--accent)}.search-input::placeholder{color:var(--text-light)}
+  select.fs{padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;cursor:pointer}
+  .btn{padding:8px 14px;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+  .btn-p{background:var(--accent-dark);color:#1c140a}.btn-p:hover{background:#9c6230}
+  .btn-g{background:transparent;border:1px solid var(--border);color:var(--text-muted)}.btn-g:hover{border-color:var(--border-strong);color:var(--text);background:var(--surface2)}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .btn-d{background:transparent;border:1px solid #6e3d3d;color:var(--s-rejected)}.btn-d:hover{background:#2a1a1a}
+  .btn-grp{display:flex;gap:4px;align-items:center}
+  .btn-grp-label{font-size:11px;color:var(--text-light);font-family:'DM Mono',monospace;margin-right:4px}
+  .tw{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:visible;box-shadow:var(--shadow)}
+  .tw table{border-radius:8px}
+  table{width:100%;border-collapse:collapse}
+  thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
+  th{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer}
+  tbody tr:last-child{border-bottom:none}
+  tbody tr:hover{background:var(--accent-light)}
+  td{padding:11px 14px;font-size:13px;vertical-align:middle}
+  .tm{font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)}
+  .tr{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .ra{display:flex;gap:6px;opacity:0;transition:opacity .15s}
+  tbody tr:hover .ra{opacity:1}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:500;white-space:nowrap}
+  .bd{width:6px;height:6px;border-radius:50%}
+  .b-applied{background:#1c2b38;color:var(--s-applied)}.b-applied .bd{background:var(--s-applied)}
+  .b-interviewing{background:#241f30;color:var(--s-interviewing)}.b-interviewing .bd{background:var(--s-interviewing)}
+  .b-rejected{background:#2e1c1c;color:var(--s-rejected)}.b-rejected .bd{background:var(--s-rejected)}
+  .b-declined{background:#1f2a1a;color:var(--s-declined)}.b-declined .bd{background:var(--s-declined)}
+  .b-lost{background:#262b30;color:var(--s-lost)}.b-lost .bd{background:var(--s-lost)}
+  .rp{font-size:10px;padding:2px 7px;border-radius:100px;font-weight:500;font-family:'DM Mono',monospace}
+  .r-yes{background:#16281f;color:var(--green)}.r-no{background:var(--surface2);color:var(--text-light)}.r-hyb{background:#2a2216;color:var(--accent)}
+  .mo{position:fixed;inset:0;background:rgba(4,8,13,.62);backdrop-filter:blur(2px);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+  .md{background:var(--surface);border-radius:12px;width:100%;max-width:700px;box-shadow:var(--shadow-lg);border:1px solid var(--border);animation:su .2s ease}
+  @keyframes su{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  .mh{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .mt{font-family:'Instrument Serif',serif;font-size:20px;letter-spacing:-.02em}
+  .mb{padding:20px 24px;max-height:78vh;overflow-y:auto}
+  .mf{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+  .xb{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);padding:2px 6px;border-radius:4px}.xb:hover{background:var(--surface2)}
+  .fg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .fgp{display:flex;flex-direction:column;gap:5px}
+  .fgp.full{grid-column:1/-1}
+  label{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)}
+  .lsub{font-weight:300;text-transform:none;letter-spacing:0;color:var(--text-light)}
+  input,select,textarea{padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;width:100%}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  textarea{resize:vertical}
+  .fsec{grid-column:1/-1;border-top:1px solid var(--border);margin-top:4px;padding-top:14px}
+  .fsec-lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light);margin-bottom:10px}
+  .dg{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  .dl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+  .dv{font-size:13px;line-height:1.5}
+  .ds{margin-bottom:16px}.ds:last-child{margin-bottom:0}
+  .mb-block{background:var(--surface2);border-radius:6px;padding:12px;font-size:12px;line-height:1.7;white-space:pre-wrap;font-family:'DM Mono',monospace;color:var(--text-muted)}
+  .jd-scroll{max-height:280px;overflow-y:auto}
+  .tg-sec{border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:16px}
+  .tg-hd{padding:10px 14px;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);user-select:none}
+  .tg-hd:hover{background:var(--border)}
+  .tg-arr{transition:transform .2s;font-size:10px}.tg-arr.open{transform:rotate(90deg)}
+  .tg-bd{display:none;padding:14px}.tg-bd.open{display:block}
+  .hi{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+  .hi:last-child{border-bottom:none}
+  .hd{font-family:'DM Mono',monospace;color:var(--text-muted);white-space:nowrap}
+  .ec{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .eci{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s;font-size:13px;background:var(--surface);user-select:none}
+  .eci.sel{border-color:var(--accent);background:var(--accent-light);color:var(--accent)}
+  .eci input[type=checkbox]{width:auto;padding:0;border:none;background:none;cursor:pointer}
+  .es{text-align:center;padding:60px 24px;color:var(--text-light)}
+  .ei{font-size:40px;margin-bottom:12px;display:block}
+  .et{font-family:'Instrument Serif',serif;font-size:20px;color:var(--text-muted);margin-bottom:6px}
+  a.jl{color:var(--accent);text-decoration:none;font-family:'DM Mono',monospace;font-size:11px}
+  a.jl:hover{text-decoration:underline}
+  /* IMPORT MODAL */
+  .import-drop{border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg)}
+  .import-drop:hover,.import-drop.drag{border-color:var(--accent);background:var(--accent-light)}
+  .import-drop-icon{font-size:32px;margin-bottom:8px}
+  .import-drop-label{font-size:13px;color:var(--text-muted)}
+  .import-drop-sub{font-size:11px;color:var(--text-light);margin-top:4px;font-family:'DM Mono',monospace}
+  .import-preview{margin-top:16px;background:var(--surface2);border-radius:6px;padding:12px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);display:none}
+  .import-warn{background:#2a2216;border:1px solid #3d3320;border-radius:6px;padding:12px;font-size:12px;color:var(--accent);margin-top:12px;display:none}
+  #fileInput{display:none}
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+  .toast.show{opacity:1}
+  /* AUTH GATE */
+  #authGate{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px}
+  .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);padding:32px;max-width:380px;width:100%;text-align:center}
+  .auth-card .logo{font-size:28px;margin-bottom:6px}
+  .auth-card .sub{font-size:13px;color:var(--text-muted);margin-bottom:24px}
+  .auth-card input{margin-bottom:12px}
+  .auth-msg{font-size:12px;color:var(--text-muted);margin-top:12px;min-height:16px}
+  #app{display:none}
+  /* JD EXTRACT */
+  .extract-row{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;padding:12px;background:var(--surface2);border-radius:6px;margin-bottom:8px}
+  .extract-row textarea{min-height:70px;font-family:'DM Mono',monospace;font-size:11px;background:var(--surface)}
+  .extract-controls{display:flex;gap:8px;align-items:center}
+  .ex-status{font-size:11px;color:var(--text-light);font-family:'DM Mono',monospace;flex:1}
+  .user-chip{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-right:8px}
+
+  /* ── DISCOVER VIEW ── */
+  #discView{padding:20px 24px;max-width:1400px}
+  .disc-toolbar{display:flex;gap:10px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
+  .disc-toolbar select.fs{width:auto;min-width:130px}
+  .disc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.disc-grid{grid-template-columns:1fr}}
+  .disc-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px}
+  .disc-card-head{display:flex;align-items:flex-start;gap:12px}
+  .score-num{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;line-height:1;min-width:28px;text-align:center}
+  .score-hi{color:var(--green)}.score-mid{color:var(--accent)}.score-lo{color:var(--text-muted)}.score-none{color:var(--border-strong)}
+  .disc-meta{flex:1;min-width:0}
+  .disc-title{font-weight:600;font-size:14px;line-height:1.3;margin-bottom:3px}
+  .disc-company{font-size:12px;color:var(--text-muted);margin-bottom:6px}
+  .disc-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .arch-tag{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:100px;background:var(--surface2);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap}
+  .comp-tag{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted)}
+  .ramp-tag{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);white-space:nowrap}
+  .ramp-low{color:var(--green)}.ramp-high{color:var(--accent)}.ramp-na{color:var(--text-light)}
+  .comp-yes{color:var(--green)}.comp-no{color:var(--accent)}.comp-unknown{color:var(--text-muted)}
+  .score-col{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:28px}
+  .rescore-flag{font-family:'DM Mono',monospace;font-size:13px;color:var(--accent);line-height:1;cursor:help}
+  .score-hist{border-top:1px dashed var(--border);margin-top:2px;padding-top:10px;display:flex;flex-direction:column;gap:10px}
+  .score-hist-lbl{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light)}
+  .sh-row{display:flex;gap:10px;align-items:flex-start}
+  .sh-score{font-family:'DM Mono',monospace;font-size:16px;font-weight:500;line-height:1.1;min-width:20px;text-align:center;flex-shrink:0}
+  .sh-meta{flex:1;min-width:0}
+  .sh-head{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted)}
+  .sh-head.sh-latest{color:var(--accent)}
+  .sh-reason{font-size:11px;line-height:1.5;color:var(--text-light);margin-top:3px}
+  .disc-reason{font-size:12px;line-height:1.6;color:var(--text);background:var(--surface2);border-radius:6px;padding:10px 12px}
+  .disc-jd-toggle{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);cursor:pointer;padding:0;background:none;border:none;text-align:left}
+  .disc-jd-toggle:hover{color:var(--accent)}
+  .disc-jd-content{display:none;font-family:'DM Mono',monospace;font-size:11px;line-height:1.6;color:var(--text-muted);background:var(--surface2);border-radius:6px;padding:10px 12px;max-height:220px;overflow-y:auto;white-space:pre-wrap;margin-top:6px}
+  .disc-jd-content.open{display:block}
+  .disc-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .disc-empty{text-align:center;padding:60px 24px;color:var(--text-light)}
+  .no-profile-banner{background:#2a2216;border:1px solid #3d3320;border-radius:8px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .no-profile-text{font-size:13px;color:var(--accent-dark);line-height:1.5}
+  .fetch-status{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);padding:4px 0}
+
+  /* ── PROFILE MODAL ── */
+  .prof-section{margin-bottom:20px}
+  .prof-section:last-child{margin-bottom:0}
+  .prof-label{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;display:block}
+  .prof-sub{font-weight:300;text-transform:none;letter-spacing:0;color:var(--text-light)}
+  .kw-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+  .kw-row{display:flex;gap:6px;align-items:center}
+  .kw-row input{flex:1}
+  .kw-remove{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;transition:color .15s;width:auto}
+  .kw-remove:hover{color:var(--s-rejected)}
+  .kw-add{display:flex;gap:6px;margin-top:4px}
+  .kw-add input{flex:1}
+
+  /* ── v2.6: HEADER ── */
+  .hdr-div{width:1px;height:20px;background:var(--border);margin:0 4px}
+  .exp-wrap{position:relative;display:inline-block}
+  .exp-menu{display:none;position:absolute;top:100%;right:0;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-lg);min-width:150px;z-index:120;overflow:hidden}
+  .exp-menu.open{display:block}
+  .exp-menu button{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);padding:10px 14px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer}
+  .exp-menu button:hover{background:var(--surface2)}
+  .exp-menu button+button{border-top:1px solid var(--border)}
+
+  /* ── v2.6: ADD ROLE PILL (Tracker) ── */
+  .add-pill-row{margin-bottom:16px}
+  .add-pill{background:var(--accent-dark);color:#1c140a;border:none;border-radius:100px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s}
+  .add-pill:hover{background:#9c6230}
+
+  /* ── v2.6: COMPANY SCAN LINKS ── */
+  .co-link{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;position:relative;font-weight:inherit}
+  .co-scan{color:var(--s-applied)}
+  .co-noscan{color:var(--accent)}
+  /* hovering lifts the link (and its tooltip subtree) into its own stacking
+     context, above every other row's company link across browsers */
+  .co-link:hover{filter:brightness(1.15);z-index:400}
+  .co-tip{display:none;position:absolute;top:100%;left:0;margin-top:8px;z-index:400;width:260px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);padding:10px 12px;font-size:12px;line-height:1.5;color:var(--text);white-space:normal;text-decoration:none;font-weight:400}
+  .co-link:hover .co-tip{display:block}
+  .co-tip-icon{margin-right:4px}
+
+  /* ── v2.6: SCAN MODAL ── */
+  .scan-verdict{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:14px;font-weight:600}
+  .scan-bl{font-size:13px;line-height:1.6;margin-bottom:16px}
+  .scan-sig-lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+  .scan-sig{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:8px}
+  .scan-sig b{color:var(--text);font-weight:500}
+  .scan-date{font-size:11px;color:var(--text-light);font-family:'DM Mono',monospace}
+
+  /* ── v2.6: COMPANY SCANS SLIDE-IN PANEL ── */
+  .scan-scrim{position:fixed;inset:0;background:rgba(4,8,13,.5);z-index:900}
+  .scan-panel{position:fixed;top:0;right:0;height:100vh;width:420px;max-width:90vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:var(--shadow-lg);z-index:1000;display:flex;flex-direction:column;animation:slidein .2s ease}
+  @keyframes slidein{from{transform:translateX(100%)}to{transform:translateX(0)}}
+  .scan-panel-hd{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .scan-panel-bd{padding:16px 24px;overflow-y:auto;flex:1}
+  .scan-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;cursor:pointer;margin-bottom:8px}
+  .scan-row:hover{background:var(--border)}
+  .scan-row-icon{font-size:16px}
+  .scan-row-main{flex:1;min-width:0}
+  .scan-row-co{font-size:13px;font-weight:500}
+  .scan-row-bl{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scan-row-date{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-light);white-space:nowrap}
+  .scan-empty{font-size:13px;color:var(--text-light);padding:20px 0;text-align:center}
+
+  /* ── v2.6: DISMISS REASONS (Settings) ── */
+  .dr-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+  .dr-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:6px}
+  .dr-label{font-size:13px;flex:1}
+  .dr-value{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-light)}
+  .dr-remove{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;width:auto}
+  .dr-remove:hover{color:var(--s-rejected)}
+  .dr-add{display:flex;gap:6px;margin-top:6px}
+
+  /* ── v2.6: SAVE-TO-TRACKER PREFILL BANNER ── */
+  .prefill-banner{grid-column:1/-1;font-size:12px;color:var(--green);background:var(--green-light);border-radius:6px;padding:8px 12px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="authGate">
+  <div class="auth-card">
+    <div class="logo">the <span>hunt</span></div>
+    <div class="sub">sign in to your tracker</div>
+    <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+    <button class="btn btn-p" style="width:100%" onclick="sendMagicLink()">Send magic link</button>
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
+
+<div id="app">
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">the <span>hunt</span></div>
+    <span class="subtitle">job search tracker</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-g" onclick="openTriage()">Triage</button>
+    <button class="btn btn-g" onclick="openScansList()">Company Scans</button>
+    <div class="exp-wrap">
+      <button class="btn btn-g" onclick="toggleExportMenu(event)">Export ▾</button>
+      <div class="exp-menu" id="expMenu">
+        <button onclick="closeExportMenu();openExport()">Export CSV</button>
+        <button onclick="closeExportMenu();exportJSON()">Export JSON</button>
+      </div>
+    </div>
+    <button class="btn btn-g" onclick="openProfile()" title="Profile &amp; Settings">Settings</button>
+    <div class="hdr-div"></div>
+    <span class="user-chip" id="userChip"></span>
+    <button class="btn btn-g" onclick="signOut()">Sign out</button>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <div class="tab active" id="tab-tracker" onclick="switchTab('tracker')">Tracker</div>
+  <div class="tab" id="tab-discover" onclick="switchTab('discover')">Discover</div>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<!-- TRACKER VIEW -->
+<div class="main" id="trackerView">
+  <div class="add-pill-row">
+    <button class="add-pill" onclick="openAdd()">+ Add Role</button>
+  </div>
+  <div class="toolbar">
+    <input type="text" class="search-input" placeholder="search by title or company..." id="si" oninput="render()">
+    <select class="fs" id="sf" onchange="render()">
+      <option value="">all statuses</option>
+      <option value="applied">applied</option>
+      <option value="interviewing">interviewing</option>
+      <option value="rejected">rejected</option>
+      <option value="declined">declined</option>
+      <option value="lost">lost to follow up</option>
+    </select>
+    <select class="fs" id="rf" onchange="render()">
+      <option value="">all locations</option>
+      <option value="Remote">remote</option>
+      <option value="Hybrid">hybrid</option>
+      <option value="On-site">on-site</option>
+    </select>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Role</th><th>Company</th><th>Applied</th><th>Status</th><th>Remote</th><th>Comp</th><th>Contact</th><th></th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+    <div id="es" style="display:none">
+      <div class="es"><span class="ei">🔍</span><div class="et">Nothing here yet</div><div style="font-size:13px">Add your first role to get started</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- DISCOVER VIEW -->
+<div id="discView" style="display:none">
+
+  <div id="noProfileBanner" class="no-profile-banner" style="display:none">
+    <div class="no-profile-text">
+      <strong>Profile not set up yet.</strong> Add your preferences and the nightly fetch will start scoring jobs for you.
+    </div>
+    <button class="btn btn-p btn-sm" onclick="openProfile()">Set up profile</button>
+  </div>
+
+  <div class="disc-toolbar">
+    <input type="text" class="search-input" placeholder="search discovered jobs..." id="dsi" oninput="renderDiscover()">
+    <select class="fs" id="dscoreF" onchange="renderDiscover()">
+      <option value="6">Score 6+</option>
+      <option value="5">Score 5+</option>
+      <option value="7">Score 7+</option>
+      <option value="8">Score 8+</option>
+      <option value="0">All scored</option>
+    </select>
+    <select class="fs" id="dsrcF" onchange="renderDiscover()">
+      <option value="">All sources</option>
+      <option value="tracked">⭐ Tracked only</option>
+      <option value="adzuna">Adzuna</option>
+      <option value="jsearch">JSearch</option>
+      <option value="builtin">Built In</option>
+      <option value="themuse">The Muse</option>
+      <option value="himalayas">Himalayas</option>
+      <option value="wwr">We Work Remotely</option>
+      <option value="greenhouse">Greenhouse</option>
+      <option value="lever">Lever</option>
+      <option value="ashby">Ashby</option>
+    </select>
+    <select class="fs" id="ddateF" onchange="renderDiscover()">
+      <option value="">All time</option>
+      <option value="1">Today</option>
+      <option value="3">Last 3 days</option>
+      <option value="7">This week</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0;color:var(--text-muted);cursor:pointer">
+      <input type="checkbox" id="dshowUnscored" onchange="renderDiscover()" style="width:auto;padding:0;border:none;background:none">
+      show unscored
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0;color:var(--text-muted);cursor:pointer">
+      <input type="checkbox" id="dshowOriginal" onchange="toggleOriginalScores()" style="width:auto;padding:0;border:none;background:none">
+      show original scores
+    </label>
+    <div style="flex:1"></div>
+    <button class="btn btn-g btn-sm" onclick="refreshDiscover()" title="Reload the Discover list">↻ Refresh</button>
+    <button class="btn btn-g btn-sm" onclick="triggerFetch()">Fetch now</button>
+    <span class="fetch-status" id="fetchStatus"></span>
+  </div>
+
+  <div id="discGrid" class="disc-grid"></div>
+
+  <div id="discEmpty" class="disc-empty" style="display:none">
+    <div class="et" style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--text-muted);margin-bottom:6px">No jobs here yet</div>
+    <div style="font-size:13px">Jobs appear after the nightly fetch — or click Fetch now to run it manually.</div>
+  </div>
+
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="mo" id="addMo" style="display:none" onclick="oco(event,'addMo')">
+  <div class="md">
+    <div class="mh"><div class="mt" id="moTitle">Add Role</div><button class="xb" onclick="cm('addMo')">×</button></div>
+    <div class="mb">
+      <div class="fg">
+        <div class="prefill-banner" id="prefillBanner" style="display:none">✓ Pre-filled from the job's JD — auto-extract ran before this modal opened. Edit anything before saving.</div>
+        <div class="extract-row" id="exRow">
+          <label>Paste JD to auto-fill <span class="lsub">(optional — uses Claude to extract fields)</span></label>
+          <textarea id="exJd" placeholder="Paste a full job description here, then click Extract..."></textarea>
+          <div class="extract-controls">
+            <div class="ex-status" id="exStatus"></div>
+            <button type="button" class="btn btn-g btn-sm" onclick="document.getElementById('exJd').value='';document.getElementById('exStatus').textContent=''">Clear</button>
+            <button type="button" class="btn btn-p btn-sm" id="exBtn" onclick="extractJD()">Extract ✨</button>
+          </div>
+        </div>
+        <div class="fgp"><label>Job Title *</label><input type="text" id="ft" placeholder="Senior Product Manager"></div>
+        <div class="fgp"><label>Company *</label><input type="text" id="fc" placeholder="Acme Corp"></div>
+        <div class="fgp">
+          <label>Status</label>
+          <select id="fst">
+            <option value="applied">Applied</option><option value="interviewing">Interviewing</option>
+            <option value="rejected">Rejected</option><option value="declined">Declined</option>
+            <option value="lost">Lost to follow up</option>
+          </select>
+        </div>
+        <div class="fgp">
+          <label>Remote</label>
+          <select id="fr"><option value="Remote">Remote</option><option value="Hybrid">Hybrid</option><option value="On-site">On-site</option></select>
+        </div>
+        <div class="fgp"><label>Compensation</label><input type="text" id="fco" placeholder="$180-220k"></div>
+        <div class="fgp"><label>Network Contact</label><input type="text" id="fn" placeholder="Name (optional)"></div>
+        <div class="fgp full"><label>Source URL</label><input type="url" id="fu" placeholder="https://..."></div>
+        <div class="fgp full"><label>Notes</label><textarea id="fno" style="min-height:70px" placeholder="First impressions, red flags, questions to ask..."></textarea></div>
+        <div class="fsec"><div class="fsec-lbl">JD Content</div></div>
+        <div class="fgp full">
+          <label>JD Summary <span class="lsub">(what the role does)</span></label>
+          <textarea id="fsu" style="min-height:90px;font-family:'DM Mono',monospace;font-size:12px" placeholder="• Owns AI product build from prototype to production&#10;• Serves as cross-functional connector&#10;• ..."></textarea>
+        </div>
+        <div class="fgp full">
+          <label>Key Requirements <span class="lsub">(what they're screening for)</span></label>
+          <textarea id="freq" style="min-height:90px;font-family:'DM Mono',monospace;font-size:12px" placeholder="• 7+ years PM in technical/AI/data products&#10;• Hands-on LLMs, RAG, agentic patterns&#10;• ..."></textarea>
+        </div>
+        <div class="fgp full">
+          <label>Full JD <span class="lsub">(reference only — never exported)</span></label>
+          <textarea id="fjd" style="min-height:100px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted)" placeholder="Paste full JD here for reference if the posting disappears..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-g" onclick="cm('addMo')">Cancel</button>
+      <button class="btn btn-p" onclick="save()">Save Role</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="mo" id="detMo" style="display:none" onclick="oco(event,'detMo')">
+  <div class="md" style="max-width:740px">
+    <div class="mh">
+      <div>
+        <div class="mt" id="detT"></div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px" id="detC"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-g btn-sm" onclick="editFromDetail()">Edit</button>
+        <button class="xb" onclick="cm('detMo')">×</button>
+      </div>
+    </div>
+    <div class="mb" id="detB"></div>
+  </div>
+</div>
+
+<!-- CSV EXPORT MODAL -->
+<div class="mo" id="expMo" style="display:none" onclick="oco(event,'expMo')">
+  <div class="md" style="max-width:480px">
+    <div class="mh"><div class="mt">Export to CSV</div><button class="xb" onclick="cm('expMo')">×</button></div>
+    <div class="mb">
+      <div style="font-size:13px;color:var(--text-muted)">Pick your columns. Full JD is always excluded.</div>
+      <div class="ec" id="ecp"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-g" onclick="cm('expMo')">Cancel</button>
+      <button class="btn btn-p" onclick="doExport()">Download CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- DISMISS WITH REASON MODAL -->
+<div class="mo" id="dismMo" style="display:none" onclick="oco(event,'dismMo')">
+  <div class="md" style="max-width:460px">
+    <div class="mh">
+      <div class="mt">Why dismiss?</div>
+      <button class="xb" onclick="cm('dismMo')">×</button>
+    </div>
+    <div class="mb">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+        Tag the reason. We'll use these later to suggest profile updates.
+      </div>
+      <div id="dismJobInfo" style="font-size:13px;background:var(--surface2);border-radius:6px;padding:10px 12px;margin-bottom:14px"></div>
+      <div class="fgp">
+        <label>Reason</label>
+        <select id="dismReason">
+          <option value="location">Location — wrong geography or office requirement</option>
+          <option value="not-actually-remote">Not actually remote despite the tag</option>
+          <option value="skills-gap">Skills gap — required tech / domain I don't have</option>
+          <option value="wrong-archetype">Wrong archetype — not the kind of PM role I want</option>
+          <option value="comp">Comp — below floor or red flag pay</option>
+          <option value="culture-signal">Culture signal — Glassdoor, layoffs, alignment theater</option>
+          <option value="expired-listing">Expired / ghost listing</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-g" onclick="cm('dismMo')">Cancel</button>
+      <button class="btn btn-d" onclick="confirmDismiss()">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRIAGE MODAL: 2-stage flow (company scan → role score) -->
+<div class="mo" id="triMo" style="display:none" onclick="oco(event,'triMo')">
+  <div class="md" style="max-width:640px">
+    <div class="mh">
+      <div class="mt">Triage</div>
+      <button class="xb" onclick="cm('triMo')">×</button>
+    </div>
+    <div class="mb">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+        Quick-scan a company before investing time on a specific role. Cached after the first scan — re-triaging the same company is free.
+      </div>
+      <div class="fgp">
+        <label>Company name</label>
+        <input type="text" id="triCompany" placeholder="e.g. Stripe">
+      </div>
+      <button class="btn btn-p" id="triScanBtn" onclick="runCompanyScan()">Run scan</button>
+      <div id="triStage1Status" style="font-size:12px;color:var(--text-muted);margin-top:10px"></div>
+      <div id="triStage1Result" style="display:none;margin-top:18px"></div>
+
+      <div id="triStage2" style="display:none;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:500;margin-bottom:10px">Stage 2 — Score the role</div>
+        <div class="fgp">
+          <label>Role title (optional)</label>
+          <input type="text" id="triRoleTitle" placeholder="Senior Product Manager">
+        </div>
+        <div class="fgp">
+          <label>Source URL (optional)</label>
+          <input type="text" id="triRoleUrl" placeholder="https://...">
+        </div>
+        <div class="fgp">
+          <label>Job description</label>
+          <textarea id="triJd" rows="8" placeholder="Paste the JD here..."></textarea>
+        </div>
+        <button class="btn btn-p" id="triScoreBtn" onclick="runRoleScore()">Score role</button>
+        <div id="triStage2Status" style="font-size:12px;color:var(--text-muted);margin-top:10px"></div>
+        <div id="triStage2Result" style="display:none;margin-top:14px"></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-g" onclick="cm('triMo')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE / SETTINGS MODAL -->
+<div class="mo" id="profMo" style="display:none" onclick="oco(event,'profMo')">
+  <div class="md" style="max-width:760px">
+    <div class="mh">
+      <div class="mt">Profile &amp; Settings</div>
+      <button class="xb" onclick="cm('profMo')">×</button>
+    </div>
+    <div class="mb">
+
+      <div class="prof-section">
+        <label class="prof-label">Scoring Profile <span class="prof-sub">— what the AI reads when evaluating each job</span></label>
+        <textarea id="profText" style="min-height:260px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.6"
+          placeholder="Paste your full preferences here — target roles, hard filters, green flags, red flags, comp floor, location constraints. The more specific, the better the scoring."></textarea>
+      </div>
+
+      <div class="prof-section">
+        <label class="prof-label">Comp Floor <span class="prof-sub">— annual $ minimum. Used to compute comp fit in code (not guessed by the model). Leave blank for no floor.</span></label>
+        <input type="number" id="profCompFloor" min="0" step="1000" placeholder="150000" style="max-width:220px;font-family:'DM Mono',monospace">
+      </div>
+
+      <div class="prof-section">
+        <label class="prof-label">Search Keywords <span class="prof-sub">— one per line, used to query Adzuna and JSearch</span></label>
+        <textarea id="profKeywords" style="min-height:120px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.8"
+          placeholder="AI Product Manager&#10;Technical Product Manager&#10;Platform Product Manager"></textarea>
+      </div>
+
+      <div class="prof-section">
+        <label class="prof-label">Dismiss Reasons <span class="prof-sub">— options shown in the dismiss dropdown on Discover. Add or remove without a deploy.</span></label>
+        <div class="dr-list" id="dismissReasonList"></div>
+        <div class="dr-add">
+          <input type="text" id="newReasonValue" placeholder="value (e.g. already-applied)" style="flex:1;font-family:'DM Mono',monospace;font-size:12px">
+          <input type="text" id="newReasonLabel" placeholder="label (e.g. Already applied)" style="flex:1;font-size:12px">
+          <button class="btn btn-g btn-sm" type="button" onclick="addDismissReason()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="prof-section">
+        <label class="prof-label">Title Filter — Required <span class="prof-sub">— one per line, title must contain at least one (case-insensitive)</span></label>
+        <textarea id="profTitlePos" style="min-height:110px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.7"
+          placeholder="Product Manager&#10;Senior Product Manager&#10;Director of Product"></textarea>
+      </div>
+
+      <div class="prof-section">
+        <label class="prof-label">Title Filter — Excluded <span class="prof-sub">— one per line, title must contain none</span></label>
+        <textarea id="profTitleNeg" style="min-height:110px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.7"
+          placeholder="Intern&#10;Program Manager&#10;Project Manager&#10;Software Engineer"></textarea>
+      </div>
+
+      <div class="prof-section">
+        <label class="prof-label">Tracked Companies <span class="prof-sub">— direct ATS pulls (Greenhouse, Lever, Ashby). Full JDs. Marked ⭐ in Discover.</span></label>
+        <div id="companyList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:6px;align-items:flex-start;margin-top:8px;flex-wrap:wrap">
+          <input type="text" id="newCompName" placeholder="Company name" style="flex:1;min-width:140px">
+          <input type="text" id="newCompUrl" placeholder="careers_url (e.g. https://jobs.lever.co/yourcompany)" style="flex:2;min-width:240px">
+          <button class="btn btn-g btn-sm" type="button" onclick="addCompany()">+ Add</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-light);font-family:'DM Mono',monospace;margin-top:6px">
+          Supported URL patterns: <code>job-boards.greenhouse.io/{slug}</code>, <code>jobs.lever.co/{slug}</code>, <code>jobs.ashbyhq.com/{slug}</code>
+        </div>
+
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+          <label class="prof-label" style="font-size:13px">Discover companies <span class="prof-sub">— auto-detect ATS &amp; add as disabled rows to review</span></label>
+          <div style="display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap">
+            <select id="discMode" class="fs" onchange="onDiscModeChange()">
+              <option value="suggest">Auto-suggest in my domains</option>
+              <option value="paste">Paste my own list</option>
+            </select>
+            <input type="number" id="discCount" value="20" min="1" max="40" style="width:64px" title="How many to suggest">
+            <button class="btn btn-g btn-sm" type="button" onclick="discoverCompanies()">Discover</button>
+            <span class="fetch-status" id="discStatus"></span>
+          </div>
+          <textarea id="discNames" placeholder="One company per line (or comma-separated)" style="width:100%;min-height:60px;display:none"></textarea>
+          <div style="font-size:11px;color:var(--text-light);font-family:'DM Mono',monospace;margin-top:4px">
+            New matches appear above as <strong>disabled</strong> rows — review and toggle on. Runs in the background (~1–2 min); reopen Settings to refresh.
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="mf" style="justify-content:space-between">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-g" onclick="triggerFetch()">Fetch now</button>
+        <span class="fetch-status" id="fetchStatus2"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" onclick="cm('profMo')">Cancel</button>
+        <button class="btn btn-p" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPANY SCAN MODAL (shared: inline link + scans panel) -->
+<div class="mo" id="scanMo" style="display:none" onclick="oco(event,'scanMo')">
+  <div class="md" style="max-width:480px">
+    <div class="mh"><div class="mt" id="scanMoTitle"></div><button class="xb" onclick="cm('scanMo')">×</button></div>
+    <div class="mb" id="scanMoBody"></div>
+    <div class="mf">
+      <button class="btn btn-g" onclick="cm('scanMo')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPANY SCANS SLIDE-IN PANEL -->
+<div id="scanPanelWrap" style="display:none">
+  <div class="scan-scrim" onclick="closeScansList()"></div>
+  <div class="scan-panel">
+    <div class="scan-panel-hd">
+      <div class="mt">Company Scans</div>
+      <button class="xb" onclick="closeScansList()">×</button>
+    </div>
+    <div class="scan-panel-bd">
+      <input type="text" class="search-input" id="scanSearch" placeholder="search by company name..." oninput="renderScansList()" style="width:100%;margin-bottom:14px">
+      <div id="scanList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+</div><!-- /#app -->
+
+<script>
+// ─────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://YOUR-PROJECT-REF.supabase.co';  // Supabase → Project Settings → API
+const SUPABASE_KEY = 'YOUR_SUPABASE_PUBLISHABLE_KEY';          // publishable (anon) key — safe to expose; RLS guards data
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ECOLS=[
+  {key:'title',label:'Job Title'},{key:'company',label:'Company'},{key:'dateApplied',label:'Date Applied'},
+  {key:'status',label:'Status'},{key:'remote',label:'Remote'},{key:'comp',label:'Compensation'},
+  {key:'contact',label:'Network Contact'},{key:'url',label:'Source URL'},{key:'notes',label:'Notes'},
+  {key:'summary',label:'JD Summary'},{key:'requirements',label:'Key Requirements'},{key:'lastStatusDate',label:'Last Status Change'},
+];
+
+const DISPLAY_CUTOFF_DAYS = 45;
+
+let jobs=[], editId=null, detId=null, currentUser=null;
+let selExp=new Set(['title','company','dateApplied','status','remote','comp','contact','lastStatusDate']);
+let discoveredJobs=[], activeTab='tracker', pendingDiscoveredId=null;
+let userProfile=null; // { profile_text, search_keywords, title_filter_positive, title_filter_negative, dismiss_reasons }
+let trackedCompanies=[];
+let companyScans=[], scanByName={};      // company_scans rows + lowercased-name → row map
+let profileDismissReasons=[];            // working copy while Settings modal is open
+
+// Fallback dismiss reasons if the config column isn't present yet (pre-migration).
+const DEFAULT_DISMISS_REASONS=[
+  {value:'location',label:'Location — wrong geography or office requirement'},
+  {value:'not-actually-remote',label:'Not actually remote despite the tag'},
+  {value:'skills-gap',label:"Skills gap — required tech / domain I don't have"},
+  {value:'wrong-archetype',label:'Wrong archetype — not the kind of PM role I want'},
+  {value:'comp',label:'Comp — below floor or red flag pay'},
+  {value:'culture-signal',label:'Culture signal — Glassdoor, layoffs, alignment theater'},
+  {value:'expired-listing',label:'Expired / ghost listing'},
+  {value:'other',label:'Other'},
+];
+function getDismissReasons(){
+  const r=userProfile&&userProfile.dismiss_reasons;
+  return Array.isArray(r)&&r.length?r:DEFAULT_DISMISS_REASONS;
+}
+
+// ── DB MAPPING ──
+function fromDb(r){
+  return {
+    id:r.id, title:r.title, company:r.company, status:r.status,
+    remote:r.remote||'', comp:r.comp||'', contact:r.contact||'',
+    url:r.url||'', notes:r.notes||'', summary:r.summary||'',
+    requirements:r.requirements||'', jd:r.jd||'',
+    dateApplied:r.date_applied||'', lastStatusDate:r.last_status_date||'',
+    statusHistory:r.status_history||[],
+    createdAt:r.created_at, updatedAt:r.updated_at,
+  };
+}
+function toDb(j){
+  return {
+    title:j.title, company:j.company, status:j.status,
+    remote:j.remote||null, comp:j.comp||null, contact:j.contact||null,
+    url:j.url||null, notes:j.notes||null, summary:j.summary||null,
+    requirements:j.requirements||null, jd:j.jd||null,
+    date_applied:j.dateApplied||null, last_status_date:j.lastStatusDate||null,
+    status_history:j.statusHistory||[],
+  };
+}
+
+// ── AUTH ──
+async function sendMagicLink(){
+  const email=document.getElementById('authEmail').value.trim();
+  const msg=document.getElementById('authMsg');
+  if(!email){msg.textContent='enter your email first';return}
+  msg.textContent='sending...';
+  const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.href}});
+  if(error){msg.textContent='error: '+error.message;return}
+  msg.textContent='check your email — click the link to sign in';
+}
+async function signOut(){await sb.auth.signOut();location.reload()}
+
+async function boot(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){document.getElementById('authGate').style.display='flex';document.getElementById('app').style.display='none';return}
+  currentUser=session.user;
+  document.getElementById('userChip').textContent=currentUser.email;
+  document.getElementById('authGate').style.display='none';
+  document.getElementById('app').style.display='block';
+  await Promise.all([loadJobs(), loadDiscovered(), loadProfile(), loadCompanies(), loadCompanyScans()]);
+  stats(); render();
+}
+sb.auth.onAuthStateChange((_e,session)=>{if(session&&!currentUser)boot()});
+boot();
+
+// ── TAB SWITCHING ──
+function switchTab(tab){
+  activeTab=tab;
+  document.getElementById('tab-tracker').classList.toggle('active', tab==='tracker');
+  document.getElementById('tab-discover').classList.toggle('active', tab==='discover');
+  document.getElementById('statsBar').style.display = tab==='tracker' ? 'flex' : 'none';
+  document.getElementById('trackerView').style.display = tab==='tracker' ? 'block' : 'none';
+  document.getElementById('discView').style.display = tab==='discover' ? 'block' : 'none';
+  if(tab==='discover') renderDiscover();
+}
+
+// ── TRACKER: JOBS ──
+async function loadJobs(){
+  const {data,error}=await sb.from('jobs').select('*').order('created_at',{ascending:false});
+  if(error){toast('Load error: '+error.message);console.error(error);return}
+  jobs=(data||[]).map(fromDb);
+}
+
+// ── STATS ──
+function stats(){
+  const c={applied:0,interviewing:0,rejected:0,declined:0,lost:0};
+  jobs.forEach(j=>{if(c[j.status]!==undefined)c[j.status]++});
+  const col={applied:'var(--s-applied)',interviewing:'var(--s-interviewing)',rejected:'var(--s-rejected)',declined:'var(--s-declined)',lost:'var(--s-lost)'};
+  const lbl={applied:'Applied',interviewing:'Interviewing',rejected:'Rejected',declined:'Declined',lost:'Lost'};
+  let h=`<div class="stat"><div class="stat-num">${jobs.length}</div><div class="stat-label">total</div></div><div class="stat-div"></div>`;
+  Object.entries(c).forEach(([k,v])=>{h+=`<div class="stat"><div class="stat-dot" style="background:${col[k]}"></div><div class="stat-num">${v}</div><div class="stat-label">${lbl[k]}</div></div>`});
+  document.getElementById('statsBar').innerHTML=h;
+}
+
+// ── TABLE ──
+function badge(s){const m={applied:'Applied',interviewing:'Interviewing',rejected:'Rejected',declined:'Declined',lost:'Lost to follow up'};return`<span class="badge b-${s}"><span class="bd"></span>${m[s]||s}</span>`}
+function rpill(r){const c=r==='Remote'?'r-yes':r==='Hybrid'?'r-hyb':'r-no';return`<span class="rp ${c}">${r||'—'}</span>`}
+function fd(d){if(!d)return'—';try{return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}catch{return d}}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escAttr(s){return esc(s).replace(/"/g,'&quot;')}
+// Company name → dotted scan link. Colored by scan-exists (blue) vs none (amber);
+// hover shows a verdict + bottom-line preview. Click handled via delegation below.
+function companyLink(name){
+  const scan=scanByName[(name||'').toLowerCase()];
+  const cls=scan?'co-scan':'co-noscan';
+  let tip='';
+  if(scan){
+    const icon=scan.verdict==='thumbs_up'?'👍':'👎';
+    const bl=scan.bottom_line?esc(scan.bottom_line):(scan.verdict==='thumbs_up'?'Worth pursuing':'Pass');
+    tip=`<span class="co-tip"><span class="co-tip-icon">${icon}</span>${bl}</span>`;
+  }
+  return `<span class="co-link ${cls}" data-co="${escAttr(name)}" title="${scan?'View company scan':'Run company scan'}">${esc(name)}${tip}</span>`;
+}
+
+function render(){
+  const q=document.getElementById('si').value.toLowerCase();
+  const sf=document.getElementById('sf').value,rf=document.getElementById('rf').value;
+  let f=jobs.filter(j=>{
+    const mq=!q||(j.title||'').toLowerCase().includes(q)||(j.company||'').toLowerCase().includes(q);
+    return mq&&(!sf||j.status===sf)&&(!rf||j.remote===rf);
+  });
+  const tb=document.getElementById('tb'),es=document.getElementById('es');
+  if(!f.length){tb.innerHTML='';es.style.display='block';return}
+  es.style.display='none';
+  tb.innerHTML=f.map(j=>`
+    <tr onclick="openDet('${j.id}')">
+      <td><span class="tr" style="max-width:180px;font-weight:500">${esc(j.title)}</span></td>
+      <td>${companyLink(j.company)}</td>
+      <td class="tm">${fd(j.dateApplied)}</td>
+      <td>${badge(j.status)}</td>
+      <td>${rpill(j.remote)}</td>
+      <td class="tm">${j.comp||'—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${j.contact||'—'}</td>
+      <td onclick="event.stopPropagation()"><div class="ra">
+        <button class="btn btn-g btn-sm" onclick="openEdit('${j.id}')">edit</button>
+        <button class="btn btn-d btn-sm" onclick="del('${j.id}')">del</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ── DETAIL ──
+function openDet(id){
+  const j=jobs.find(x=>x.id===id);if(!j)return;
+  detId=id;
+  document.getElementById('detT').textContent=j.title;
+  document.getElementById('detC').textContent=j.company;
+  const hist=j.statusHistory&&j.statusHistory.length>1?`<div class="ds"><div class="dl">Status History</div><div>${j.statusHistory.map(h=>`<div class="hi"><span class="badge b-${h.status}" style="font-size:10px">${h.status}</span><span class="hd">${fd(h.date)}</span></div>`).join('')}</div></div>`:'';
+  const su=j.summary?`<div class="ds"><div class="dl">JD Summary</div><div class="mb-block">${esc(j.summary)}</div></div>`:'';
+  const rq=j.requirements?`<div class="ds"><div class="dl">Key Requirements</div><div class="mb-block">${esc(j.requirements)}</div></div>`:'';
+  const no=j.notes?`<div class="ds"><div class="dl">Notes</div><div class="dv" style="line-height:1.6">${esc(j.notes)}</div></div>`:'';
+  const jd=j.jd?`<div class="tg-sec"><div class="tg-hd" onclick="tog(this)"><span>Full JD</span><span class="tg-arr">▶</span></div><div class="tg-bd"><div class="mb-block jd-scroll">${esc(j.jd)}</div></div></div>`:'';
+  document.getElementById('detB').innerHTML=`
+    <div class="dg">
+      <div><div class="dl">Status</div><div class="dv">${badge(j.status)}</div></div>
+      <div><div class="dl">Applied</div><div class="dv tm">${fd(j.dateApplied)}</div></div>
+      <div><div class="dl">Remote</div><div class="dv">${rpill(j.remote)}</div></div>
+      <div><div class="dl">Compensation</div><div class="dv">${j.comp||'—'}</div></div>
+      <div><div class="dl">Network Contact</div><div class="dv">${j.contact||'—'}</div></div>
+      <div><div class="dl">Source</div><div class="dv">${j.url?`<a class="jl" href="${j.url}" target="_blank">↗ open JD</a>`:'—'}</div></div>
+    </div>${no}${su}${rq}${hist}${jd}`;
+  document.getElementById('detMo').style.display='flex';
+}
+
+function tog(hd){const arr=hd.querySelector('.tg-arr'),bd=hd.nextElementSibling;const o=bd.classList.contains('open');bd.classList.toggle('open',!o);arr.classList.toggle('open',!o)}
+function editFromDetail(){cm('detMo');openEdit(detId)}
+
+// ── ADD/EDIT ──
+function openAdd(){
+  pendingDiscoveredId=null;
+  editId=null;
+  document.getElementById('moTitle').textContent='Add Role';
+  clr();
+  document.getElementById('addMo').style.display='flex';
+}
+
+function openEdit(id){
+  const j=jobs.find(x=>x.id===id);if(!j)return;
+  pendingDiscoveredId=null;
+  editId=id;document.getElementById('moTitle').textContent='Edit Role';
+  document.getElementById('ft').value=j.title||'';
+  document.getElementById('fc').value=j.company||'';
+  document.getElementById('fst').value=j.status||'applied';
+  document.getElementById('fr').value=j.remote||'Remote';
+  document.getElementById('fco').value=j.comp||'';
+  document.getElementById('fn').value=j.contact||'';
+  document.getElementById('fu').value=j.url||'';
+  document.getElementById('fno').value=j.notes||'';
+  document.getElementById('fsu').value=j.summary||'';
+  document.getElementById('freq').value=j.requirements||'';
+  document.getElementById('fjd').value=j.jd||'';
+  document.getElementById('addMo').style.display='flex';
+}
+
+async function openAddFromDiscovered(discoveredId){
+  const j=discoveredJobs.find(x=>x.id===discoveredId);if(!j)return;
+  pendingDiscoveredId=discoveredId;
+  editId=null;
+  document.getElementById('moTitle').textContent='Save to Tracker';
+  clr();
+  // Base prefill straight from the discovered row.
+  document.getElementById('ft').value=j.title||'';
+  document.getElementById('fc').value=j.company||'';
+  document.getElementById('fst').value='applied';
+  if(j.remote&&['Remote','Hybrid','On-site'].includes(j.remote))document.getElementById('fr').value=j.remote;
+  document.getElementById('fco').value=j.comp||'';
+  document.getElementById('fu').value=j.url||'';
+  document.getElementById('fjd').value=j.jd||'';
+  document.getElementById('exStatus').textContent='Prefilled from discovery — review and save';
+  // Feature 3: auto-extract from the JD already on the row before opening the modal.
+  // Fills summary/requirements (and anything still blank). Never blocks the save.
+  if(j.jd&&j.jd.trim()){
+    toast('Extracting JD…');
+    try{
+      const res=await fetch('/extract-jd',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jd:j.jd,url:j.url||'',sourceCompany:j.company||''})});
+      const ex=await res.json();
+      if(res.ok){
+        const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v};
+        setIf('ft',ex.title);setIf('fc',ex.company);setIf('fco',ex.comp);
+        setIf('fu',ex.url);setIf('fsu',ex.summary);setIf('freq',ex.requirements);
+        if(ex.remote&&['Remote','Hybrid','On-site'].includes(ex.remote))document.getElementById('fr').value=ex.remote;
+        document.getElementById('prefillBanner').style.display='block';
+        document.getElementById('exStatus').textContent='✓ auto-extracted from JD — review and save';
+      }
+    }catch(e){/* fall back to plain prefill */}
+  }
+  document.getElementById('addMo').style.display='flex';
+}
+
+function clr(){['ft','fc','fco','fn','fu','fno','fsu','freq','fjd','exJd'].forEach(i=>{const el=document.getElementById(i);if(el)el.value=''});document.getElementById('fst').value='applied';document.getElementById('fr').value='Remote';document.getElementById('exStatus').textContent='';const b=document.getElementById('prefillBanner');if(b)b.style.display='none'}
+
+async function save(){
+  const t=document.getElementById('ft').value.trim(),c=document.getElementById('fc').value.trim();
+  if(!t||!c){alert('Job title and company are required.');return}
+  const st=document.getElementById('fst').value,now=new Date().toISOString().split('T')[0];
+  const f={title:t,company:c,status:st,remote:document.getElementById('fr').value,comp:document.getElementById('fco').value.trim(),contact:document.getElementById('fn').value.trim(),url:document.getElementById('fu').value.trim(),notes:document.getElementById('fno').value.trim(),summary:document.getElementById('fsu').value.trim(),requirements:document.getElementById('freq').value.trim(),jd:document.getElementById('fjd').value.trim()};
+  let newTrackerJobId=null;
+  if(editId){
+    const p=jobs.find(j=>j.id===editId);
+    const h=p.statusHistory&&p.statusHistory.length?p.statusHistory.slice():[{status:p.status,date:p.dateApplied}];
+    if(st!==p.status)h.push({status:st,date:now});
+    const merged={...p,...f,statusHistory:h,lastStatusDate:st!==p.status?now:p.lastStatusDate};
+    const {error}=await sb.from('jobs').update(toDb(merged)).eq('id',editId);
+    if(error){alert('Save failed: '+error.message);return}
+  }else{
+    const fresh={...f,dateApplied:now,lastStatusDate:now,statusHistory:[{status:st,date:now}]};
+    const {data,error}=await sb.from('jobs').insert({...toDb(fresh),user_id:currentUser.id}).select('id').single();
+    if(error){alert('Save failed: '+error.message);return}
+    newTrackerJobId=data?.id||null;
+  }
+
+  // If this came from a discovered job, mark it as saved and link to the tracker row
+  if(pendingDiscoveredId){
+    const update={status:'saved'};
+    if(newTrackerJobId)update.tracker_id=newTrackerJobId;
+    await sb.from('discovered_jobs').update(update).eq('id',pendingDiscoveredId);
+    discoveredJobs=discoveredJobs.filter(j=>j.id!==pendingDiscoveredId);
+    pendingDiscoveredId=null;
+    if(activeTab==='discover')renderDiscover();
+  }
+
+  await loadJobs();stats();render();cm('addMo');
+}
+
+async function del(id){
+  if(!confirm('Remove this role?'))return;
+  const {error}=await sb.from('jobs').delete().eq('id',id);
+  if(error){alert('Delete failed: '+error.message);return}
+  await loadJobs();stats();render();
+}
+
+// ── JD EXTRACT ──
+async function extractJD(){
+  const raw=document.getElementById('exJd').value.trim();
+  const status=document.getElementById('exStatus');
+  const btn=document.getElementById('exBtn');
+  if(!raw){status.textContent='paste a JD first';return}
+  btn.disabled=true;btn.style.opacity='.5';status.textContent='extracting...';
+  try{
+    const sourceUrl=document.getElementById('fu').value.trim();
+    const res=await fetch('/extract-jd',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jd:raw,url:sourceUrl})});
+    const j=await res.json();
+    if(!res.ok){status.textContent='error: '+(j.error||res.status);return}
+    const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v};
+    setIf('ft',j.title);
+    setIf('fc',j.company);
+    setIf('fco',j.comp);
+    setIf('fu',j.url);
+    setIf('fsu',j.summary);
+    setIf('freq',j.requirements);
+    if(j.remote&&['Remote','Hybrid','On-site'].includes(j.remote))document.getElementById('fr').value=j.remote;
+    const jd=document.getElementById('fjd');if(!jd.value.trim())jd.value=raw;
+    status.textContent='✓ filled — review and save';
+  }catch(e){status.textContent='error: '+e.message}
+  finally{btn.disabled=false;btn.style.opacity='1'}
+}
+
+// ── DISCOVER: LOAD ──
+async function loadDiscovered(){
+  const cutoff=new Date();
+  cutoff.setDate(cutoff.getDate()-DISPLAY_CUTOFF_DAYS);
+  const cutoffStr=cutoff.toISOString().split('T')[0];
+
+  const {data,error}=await sb.from('discovered_jobs_scored')
+    .select('*')
+    .eq('status','new')
+    .gte('posted_at',cutoffStr)
+    .order('score',{ascending:false,nullsFirst:false})
+    .order('posted_at',{ascending:false});
+
+  if(error){console.error('Discovered jobs load error:',error);return}
+  discoveredJobs=data||[];
+}
+
+// ── DISCOVER: RENDER ──
+function renderDiscover(){
+  const q=(document.getElementById('dsi').value||'').toLowerCase();
+  const threshold=parseInt(document.getElementById('dscoreF').value)||0;
+  const srcFilter=document.getElementById('dsrcF').value;
+  const dateFilter=document.getElementById('ddateF').value;
+  const showUnscored=document.getElementById('dshowUnscored').checked;
+
+  // Show/hide no-profile banner
+  const noProf=!userProfile||!userProfile.profile_text;
+  document.getElementById('noProfileBanner').style.display=noProf?'flex':'none';
+
+  // Date filter — based on when the job was fetched (assessment date)
+  let fetchedCutoff=null;
+  if(dateFilter){
+    const days=parseInt(dateFilter);
+    fetchedCutoff=new Date();
+    fetchedCutoff.setHours(0,0,0,0);
+    fetchedCutoff.setDate(fetchedCutoff.getDate()-(days-1));
+  }
+
+  let filtered=discoveredJobs.filter(j=>{
+    if(srcFilter==='tracked'){if(!j.tracked)return false}
+    else if(srcFilter&&j.source!==srcFilter)return false;
+    if(fetchedCutoff&&j.fetched_at&&new Date(j.fetched_at)<fetchedCutoff)return false;
+    if(q&&!j.title.toLowerCase().includes(q)&&!j.company.toLowerCase().includes(q))return false;
+    if(j.score===null||j.score===undefined){return showUnscored}
+    return j.score>=threshold;
+  });
+
+  const grid=document.getElementById('discGrid');
+  const empty=document.getElementById('discEmpty');
+
+  if(!filtered.length){
+    grid.innerHTML='';
+    empty.style.display='block';
+    return;
+  }
+  empty.style.display='none';
+
+  const showOriginal=document.getElementById('dshowOriginal').checked;
+  grid.innerHTML=filtered.map(j=>discCard(j,showOriginal)).join('');
+}
+
+function scoreClass(score){
+  if(score===null||score===undefined)return'score-none';
+  if(score>=8)return'score-hi';
+  if(score>=6)return'score-mid';
+  return'score-lo';
+}
+
+function daysAgo(dateStr){
+  if(!dateStr)return'';
+  const d=new Date(dateStr+'T12:00:00'),now=new Date();
+  const diff=Math.round((now-d)/(1000*60*60*24));
+  if(diff===0)return'today';
+  if(diff===1)return'1 day ago';
+  return`${diff} days ago`;
+}
+
+// ── COMPARISON VIEW (show original scores) ──
+// Lazy-loaded map: discovered_job_id -> [score events, newest first]. Only
+// fetched for jobs whose latest score is a rescore (they're the only ones with
+// history worth comparing). Invalidated after any re-score.
+let scoreHistory=null;
+
+function modelLabel(m){
+  if(!m)return'?';
+  const s=String(m).toLowerCase();
+  if(s.includes('haiku'))return'Haiku';
+  if(s.includes('sonnet'))return'Sonnet';
+  if(s.includes('opus'))return'Opus';
+  return m;
+}
+
+function scoredAgo(ts){
+  if(!ts)return'';
+  const mins=Math.round((Date.now()-new Date(ts))/60000);
+  if(mins<60)return mins<=1?'just now':`${mins}m ago`;
+  const hrs=Math.round(mins/60);
+  if(hrs<24)return`${hrs}h ago`;
+  const days=Math.round(hrs/24);
+  return days===1?'1 day ago':`${days} days ago`;
+}
+
+async function toggleOriginalScores(){
+  if(document.getElementById('dshowOriginal').checked&&!scoreHistory){
+    await loadScoreHistory();
+  }
+  renderDiscover();
+}
+
+async function loadScoreHistory(){
+  const ids=discoveredJobs.filter(j=>j.scoring_source==='rescore').map(j=>j.id);
+  if(!ids.length){scoreHistory={};return}
+  const {data,error}=await sb.from('job_scores')
+    .select('discovered_job_id,score,score_reason,model,scoring_source,scored_at')
+    .in('discovered_job_id',ids)
+    .order('scored_at',{ascending:false});
+  if(error){console.error('Score history load error:',error);scoreHistory={};return}
+  const map={};
+  for(const r of (data||[])){(map[r.discovered_job_id]=map[r.discovered_job_id]||[]).push(r)}
+  scoreHistory=map;
+}
+
+function discCard(j,showOriginal){
+  const scoreDisplay=j.score!=null?j.score:'—';
+  const sc=scoreClass(j.score);
+  const rescored=j.scoring_source==='rescore';
+  const rescoreFlag=rescored
+    ?`<span class="rescore-flag" title="Re-scored — second opinion, not the original nightly score">⟳</span>`
+    :'';
+  let histHtml='';
+  if(showOriginal&&rescored&&scoreHistory&&(scoreHistory[j.id]||[]).length>1){
+    const rows=scoreHistory[j.id].map((h,i)=>`
+      <div class="sh-row">
+        <div class="sh-score ${scoreClass(h.score)}">${h.score??'—'}</div>
+        <div class="sh-meta">
+          <div class="sh-head${i===0?' sh-latest':''}">${modelLabel(h.model)} · ${esc(h.scoring_source||'')} · ${scoredAgo(h.scored_at)}${i===0?' · latest':''}</div>
+          ${h.score_reason?`<div class="sh-reason">${esc(h.score_reason)}</div>`:''}
+        </div>
+      </div>`).join('');
+    histHtml=`<div class="score-hist"><div class="score-hist-lbl">Score history</div>${rows}</div>`;
+  }
+  const compCls=j.comp_ok==='yes'?'comp-yes':j.comp_ok==='no'?'comp-no':'comp-unknown';
+  const compTag=j.comp?`<span class="comp-tag ${compCls}" title="Comp vs floor: ${j.comp_ok||'unknown'}">${esc(j.comp)}</span>`:'';
+  const archTag=j.archetype?`<span class="arch-tag">${esc(j.archetype)}</span>`:'';
+  const rampCls=j.ramp_cost==='low'?'ramp-low':j.ramp_cost==='high'?'ramp-high':'ramp-na';
+  const rampTag=j.ramp_cost?`<span class="ramp-tag ${rampCls}" title="Ramp cost">ramp: ${esc(j.ramp_cost)}</span>`:'';
+  const remPill=j.remote?rpill(j.remote):'';
+  const trackedStar=j.tracked?'<span title="Tracked company" style="margin-right:4px">⭐</span>':'';
+  const notesBlock=j.tracked&&j.company_notes
+    ?`<div style="font-size:11px;font-style:italic;color:var(--text-muted);background:var(--accent-light);border-radius:6px;padding:8px 10px;line-height:1.5">📌 ${esc(j.company_notes)}</div>`
+    :'';
+  const reasonHtml=j.score_reason
+    ?`<div class="disc-reason">${esc(j.score_reason)}</div>`
+    :`<div class="disc-reason" style="color:var(--text-light);font-style:italic">Not yet scored — click Re-score to evaluate.</div>`;
+  const jdSection=j.jd
+    ?`<div>
+        <button class="disc-jd-toggle" onclick="toggleDiscJd(this)">▶ Show full JD</button>
+        <div class="disc-jd-content">${esc(j.jd)}</div>
+      </div>`
+    :'';
+  const openLink=j.url?`<a class="jl" href="${esc(j.url)}" target="_blank" onclick="event.stopPropagation()">↗ open</a>`:'';
+
+  return`<div class="disc-card">
+    <div class="disc-card-head">
+      <div class="score-col">
+        <div class="score-num ${sc}">${scoreDisplay}</div>
+        ${rescoreFlag}
+      </div>
+      <div class="disc-meta">
+        <div class="disc-title">${trackedStar}${esc(j.title)}</div>
+        <div class="disc-company">${companyLink(j.company)} · ${daysAgo(j.posted_at)} · ${esc(j.source)}</div>
+        <div class="disc-tags">
+          ${archTag}${rampTag}${remPill}${compTag}${openLink}
+        </div>
+      </div>
+    </div>
+    ${notesBlock}
+    ${reasonHtml}
+    ${histHtml}
+    ${jdSection}
+    <div class="disc-actions">
+      <button class="btn btn-p btn-sm" onclick="openAddFromDiscovered('${j.id}')">Save to Tracker</button>
+      <button class="btn btn-g btn-sm" onclick="rescoreJob('${j.id}')">Re-score</button>
+      <button class="btn btn-d btn-sm" onclick="dismissJob('${j.id}')">Dismiss</button>
+    </div>
+  </div>`;
+}
+
+function toggleDiscJd(btn){
+  const content=btn.nextElementSibling;
+  const open=content.classList.toggle('open');
+  btn.textContent=(open?'▼ Hide':'▶ Show')+' full JD';
+}
+
+// ── DISCOVER: ACTIONS ──
+let pendingDismissId=null;
+
+function dismissJob(id){
+  const j=discoveredJobs.find(x=>x.id===id);
+  if(!j)return;
+  pendingDismissId=id;
+  document.getElementById('dismJobInfo').innerHTML=
+    `<div style="font-weight:500">${esc(j.title)}</div>
+     <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(j.company)} · score ${j.score||'—'}</div>`;
+  const reasons=getDismissReasons();
+  const sel=document.getElementById('dismReason');
+  sel.innerHTML=reasons.map(r=>`<option value="${escAttr(r.value)}">${esc(r.label)}</option>`).join('');
+  if(reasons.some(r=>r.value==='wrong-archetype'))sel.value='wrong-archetype';
+  document.getElementById('dismMo').style.display='flex';
+}
+
+async function confirmDismiss(){
+  if(!pendingDismissId)return;
+  const reason=document.getElementById('dismReason').value;
+  const {error}=await sb.from('discovered_jobs')
+    .update({status:'dismissed',dismiss_reason:reason}).eq('id',pendingDismissId);
+  if(error){toast('Dismiss failed: '+error.message);return}
+  discoveredJobs=discoveredJobs.filter(j=>j.id!==pendingDismissId);
+  pendingDismissId=null;
+  cm('dismMo');
+  renderDiscover();
+}
+
+async function rescoreJob(id){
+  toast('Re-scoring...');
+  const res=await fetch('/score-job',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({job_id:id,source:'rescore'})});
+  const data=await res.json();
+  if(!res.ok){toast('Score failed: '+(data.error||res.status));return}
+  // Update local state
+  const idx=discoveredJobs.findIndex(j=>j.id===id);
+  if(idx>-1){
+    discoveredJobs[idx]={...discoveredJobs[idx],score:data.score,score_reason:data.score_reason,archetype:data.archetype,comp_ok:data.comp_ok,ramp_cost:data.ramp_cost,scoring_source:'rescore'};
+  }
+  scoreHistory=null; // a new scoring event exists now — refetch if comparison is open
+  if(document.getElementById('dshowOriginal').checked){await loadScoreHistory()}
+  renderDiscover();
+  toast('Re-scored');
+}
+
+// ── PROFILE ──
+async function loadProfile(){
+  const {data,error}=await sb.from('user_profile').select('*').limit(1);
+  if(error){console.error('Profile load error:',error);return}
+  userProfile=data&&data.length?data[0]:null;
+}
+
+function openProfile(){
+  const kws=userProfile?.search_keywords;
+  const tpos=userProfile?.title_filter_positive;
+  const tneg=userProfile?.title_filter_negative;
+  document.getElementById('profText').value=userProfile?.profile_text||'';
+  document.getElementById('profCompFloor').value=userProfile?.comp_floor??'';
+  document.getElementById('profKeywords').value=Array.isArray(kws)&&kws.length
+    ?kws.join('\n')
+    :'AI Product Manager\nTechnical Product Manager\nPlatform Product Manager\nData Product Manager\nProduct Operations Manager\nSenior Product Manager';
+  document.getElementById('profTitlePos').value=Array.isArray(tpos)?tpos.join('\n'):'';
+  document.getElementById('profTitleNeg').value=Array.isArray(tneg)?tneg.join('\n'):'';
+  profileDismissReasons=getDismissReasons().map(r=>({value:r.value,label:r.label}));
+  renderDismissReasons();
+  renderCompanyList();
+  document.getElementById('profMo').style.display='flex';
+}
+
+async function saveProfile(){
+  const profileText=document.getElementById('profText').value.trim();
+  const keywordsRaw=document.getElementById('profKeywords').value;
+  const keywords=keywordsRaw.split('\n').map(k=>k.trim()).filter(Boolean);
+  const posRaw=document.getElementById('profTitlePos').value;
+  const negRaw=document.getElementById('profTitleNeg').value;
+  const tpos=posRaw.split('\n').map(k=>k.trim()).filter(Boolean);
+  const tneg=negRaw.split('\n').map(k=>k.trim()).filter(Boolean);
+  const compFloorRaw=document.getElementById('profCompFloor').value.trim();
+  const compFloor=compFloorRaw===''?null:(Number.isFinite(parseInt(compFloorRaw,10))?parseInt(compFloorRaw,10):null);
+
+  if(!profileText){alert('Profile text is required.');return}
+  if(!keywords.length){alert('Add at least one search keyword.');return}
+
+  const {error}=await sb.from('user_profile').upsert({
+    user_id:currentUser.id,
+    profile_text:profileText,
+    search_keywords:keywords,
+    title_filter_positive:tpos,
+    title_filter_negative:tneg,
+    comp_floor:compFloor,
+    dismiss_reasons:profileDismissReasons,
+  },{onConflict:'user_id'});
+
+  if(error){alert('Save failed: '+error.message);return}
+  userProfile={...(userProfile||{}),profile_text:profileText,search_keywords:keywords,title_filter_positive:tpos,title_filter_negative:tneg,comp_floor:compFloor,dismiss_reasons:profileDismissReasons};
+  cm('profMo');
+  toast('Profile saved');
+}
+
+// ── TRACKED COMPANIES ──
+async function loadCompanies(){
+  const {data,error}=await sb.from('tracked_companies').select('*').order('name');
+  if(error){console.error('Companies load error:',error);return}
+  trackedCompanies=data||[];
+}
+
+function renderCompanyList(){
+  const container=document.getElementById('companyList');
+  if(!container)return;
+  if(!trackedCompanies.length){
+    container.innerHTML='<div style="font-size:12px;color:var(--text-light);font-style:italic">No tracked companies yet — add one below, or run the seed SQL.</div>';
+    return;
+  }
+  container.innerHTML=trackedCompanies.map(c=>`
+    <div style="display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:${c.enabled?'var(--surface)':'var(--surface2)'}">
+      <input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCompanyEnabled('${c.id}',this.checked)" style="width:auto" title="Enabled?">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;${c.enabled?'':'color:var(--text-light)'}">${esc(c.name)}</div>
+        <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.careers_url)}</div>
+        ${c.notes?`<div style="font-size:10px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.notes)}</div>`:''}
+      </div>
+      <button class="btn btn-d btn-sm" onclick="deleteCompany('${c.id}')" type="button">×</button>
+    </div>
+  `).join('');
+}
+
+async function addCompany(){
+  const name=document.getElementById('newCompName').value.trim();
+  const url=document.getElementById('newCompUrl').value.trim();
+  if(!name||!url){alert('Name and careers_url are required.');return}
+  const {data,error}=await sb.from('tracked_companies').insert({
+    user_id:currentUser.id,name,careers_url:url,enabled:true,
+  }).select().single();
+  if(error){alert('Add failed: '+error.message);return}
+  trackedCompanies.push(data);
+  trackedCompanies.sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById('newCompName').value='';
+  document.getElementById('newCompUrl').value='';
+  renderCompanyList();
+}
+
+async function toggleCompanyEnabled(id,enabled){
+  const {error}=await sb.from('tracked_companies').update({enabled}).eq('id',id);
+  if(error){alert('Update failed: '+error.message);return}
+  const c=trackedCompanies.find(x=>x.id===id);
+  if(c)c.enabled=enabled;
+  renderCompanyList();
+}
+
+async function deleteCompany(id){
+  const c=trackedCompanies.find(x=>x.id===id);
+  if(!confirm(`Remove "${c?.name}" from tracked companies?`))return;
+  const {error}=await sb.from('tracked_companies').delete().eq('id',id);
+  if(error){alert('Delete failed: '+error.message);return}
+  trackedCompanies=trackedCompanies.filter(x=>x.id!==id);
+  renderCompanyList();
+}
+
+function onDiscModeChange(){
+  const paste=document.getElementById('discMode').value==='paste';
+  document.getElementById('discNames').style.display=paste?'block':'none';
+  document.getElementById('discCount').style.display=paste?'none':'';
+}
+
+async function discoverCompanies(){
+  const mode=document.getElementById('discMode').value;
+  const stat=document.getElementById('discStatus');
+  const payload={mode};
+  if(mode==='paste'){
+    const names=document.getElementById('discNames').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+    if(!names.length){alert('Paste at least one company name.');return}
+    payload.names=names;
+  }else{
+    payload.count=parseInt(document.getElementById('discCount').value,10)||20;
+  }
+  if(stat)stat.textContent='Starting discovery...';
+  try{
+    const res=await fetch('/discover-companies',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    if(res.ok||res.status===202){
+      if(stat)stat.textContent='Running — reopen Settings in ~1–2 min';
+      toast('Discovery started — new matches will appear as disabled companies');
+    }else{
+      if(stat)stat.textContent='Error: '+res.status;
+    }
+  }catch(e){
+    if(stat)stat.textContent='Error: '+e.message;
+  }
+}
+
+// Manual reload of the Discover list (always available).
+async function refreshDiscover(){
+  await loadDiscovered();
+  renderDiscover();
+  toast('Discover refreshed');
+}
+
+let runPollTimer=null;
+
+async function triggerFetch(){
+  const statEls=[document.getElementById('fetchStatus'),document.getElementById('fetchStatus2')];
+  const setStatus=t=>statEls.forEach(el=>{if(el)el.textContent=t});
+  setStatus('Starting fetch...');
+  const clickMs=Date.now();
+  try{
+    const res=await fetch('/run-fetch',{method:'POST'});
+    if(res.ok||res.status===202){
+      setStatus('Running…');
+      toast('Fetch started — watching for completion');
+      pollRunStatus(clickMs,setStatus);
+    }else{
+      setStatus('Error: '+res.status);
+    }
+  }catch(e){
+    setStatus('Error: '+e.message);
+  }
+}
+
+// Poll pipeline_runs for the run we just triggered. The background function
+// can't push to the browser, so it writes a run row (status running → done);
+// on completion we toast + auto-refresh the Discover list.
+function pollRunStatus(clickMs,setStatus){
+  if(runPollTimer){clearInterval(runPollTimer);runPollTimer=null}
+  const since=new Date(clickMs-60000).toISOString();  // buffer for clock skew + function spin-up
+  const deadline=Date.now()+6*60*1000;                // give up after ~6 min
+  let ticks=0;
+  runPollTimer=setInterval(async()=>{
+    if(Date.now()>deadline){clearInterval(runPollTimer);runPollTimer=null;setStatus('Still running — use ↻ Refresh when ready');return}
+    ticks++;
+    const {data,error}=await sb.from('pipeline_runs')
+      .select('status,summary,started_at')
+      .gte('started_at',since)
+      .order('started_at',{ascending:false}).limit(1);
+    if(error||!data||!data.length)return;
+    const run=data[0];
+    if(run.status==='running'){setStatus('Running… ('+(ticks*15)+'s)');return}
+    clearInterval(runPollTimer);runPollTimer=null;
+    if(run.status==='done'){
+      const s=run.summary||{};const n=s.inserted??0;
+      setStatus('✓ Done — '+n+' new');
+      await loadDiscovered();renderDiscover();
+      toast('Fetch complete — '+n+' new job'+(n===1?'':'s')+' added'+(s.scored!=null?` (${s.scored} scored)`:''));
+    }else{
+      setStatus('Run error — check logs');
+      toast('Fetch run reported an error');
+    }
+  },15000);
+}
+
+// ── TRIAGE: manual two-stage flow (company scan → role score) ──
+let triageScanRow=null;
+
+function openTriage(){
+  triageScanRow=null;
+  ['triCompany','triRoleTitle','triRoleUrl','triJd'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  document.getElementById('triStage1Status').textContent='';
+  document.getElementById('triStage2Status').textContent='';
+  document.getElementById('triStage1Result').style.display='none';
+  document.getElementById('triStage1Result').innerHTML='';
+  document.getElementById('triStage2').style.display='none';
+  document.getElementById('triStage2Result').style.display='none';
+  document.getElementById('triStage2Result').innerHTML='';
+  document.getElementById('triMo').style.display='flex';
+  setTimeout(()=>document.getElementById('triCompany').focus(),50);
+}
+
+async function runCompanyScan(){
+  const company=document.getElementById('triCompany').value.trim();
+  const stat=document.getElementById('triStage1Status');
+  if(!company){stat.textContent='Enter a company name first';return}
+  const btn=document.getElementById('triScanBtn');
+  btn.disabled=true;btn.style.opacity='.5';
+  stat.textContent='Scanning...';
+  try{
+    const res=await fetch('/company-scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({company_name:company})});
+    const data=await res.json();
+    if(!res.ok){stat.textContent='Error: '+(data.error||res.status);return}
+    triageScanRow=data;
+    renderScanResult(data);
+    if(data.verdict==='thumbs_up'){
+      document.getElementById('triStage2').style.display='block';
+    }
+    stat.textContent=data.cached?'✓ pulled from cache (no API call)':'✓ fresh scan';
+  }catch(e){
+    stat.textContent='Error: '+e.message;
+  }finally{
+    btn.disabled=false;btn.style.opacity='1';
+  }
+}
+
+function renderScanResult(d){
+  const el=document.getElementById('triStage1Result');
+  const verdict=d.verdict==='thumbs_up'
+    ?`<span style="color:var(--green);background:var(--green-light);padding:4px 12px;border-radius:6px;font-weight:500;font-size:13px">👍 Worth applying</span>`
+    :`<span style="color:var(--text-muted);background:var(--surface2);padding:4px 12px;border-radius:6px;font-weight:500;font-size:13px">👎 Pass</span>`;
+  el.innerHTML=`
+    <div style="margin-bottom:12px">${verdict}</div>
+    ${d.bottom_line?`<div style="font-size:13px;margin-bottom:14px;line-height:1.5">${esc(d.bottom_line)}</div>`:''}
+    ${triSignal('What they do',d.what_they_do)}
+    ${triSignal('Financial health',d.financial_health)}
+    ${triSignal('Remote culture',d.remote_culture)}
+    ${triSignal('Red flags',d.red_flags)}
+  `;
+  el.style.display='block';
+}
+
+function triSignal(label,val){
+  if(!val)return'';
+  return`<div style="font-size:12px;margin-bottom:8px;line-height:1.5"><span style="color:var(--text-muted);font-weight:500">${label}:</span> ${esc(val)}</div>`;
+}
+
+async function runRoleScore(){
+  const jd=document.getElementById('triJd').value.trim();
+  const stat=document.getElementById('triStage2Status');
+  if(!jd){stat.textContent='Paste a JD first';return}
+  if(!triageScanRow||!triageScanRow.company_name){stat.textContent='Run a company scan first';return}
+  const btn=document.getElementById('triScoreBtn');
+  btn.disabled=true;btn.style.opacity='.5';
+  stat.textContent='Scoring...';
+  try{
+    const title=document.getElementById('triRoleTitle').value.trim()||'Manual entry';
+    const url=document.getElementById('triRoleUrl').value.trim()||null;
+    const today=new Date().toISOString().split('T')[0];
+    const row={
+      user_id:currentUser.id,
+      source:'manual',
+      external_id:`manual:${Date.now()}`,
+      title:title,
+      company:triageScanRow.company_name,
+      location:'',
+      remote:'',
+      comp:'',
+      url:url,
+      jd:jd,
+      posted_at:today,
+      entry_source:'manual',
+      status:'new',
+    };
+    const ins=await sb.from('discovered_jobs').insert(row).select('id').single();
+    if(ins.error){stat.textContent='Insert failed: '+ins.error.message;return}
+    const newJobId=ins.data.id;
+
+    const res=await fetch('/score-job',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({job_id:newJobId,source:'manual'})});
+    const score=await res.json();
+    if(!res.ok){stat.textContent='Scoring failed: '+(score.error||res.status);return}
+
+    if(triageScanRow.id){
+      await sb.from('company_scans').update({proceeded_to_score:true}).eq('id',triageScanRow.id);
+    }
+
+    renderScoreResult(score);
+    stat.textContent='✓ added to Discover';
+  }catch(e){
+    stat.textContent='Error: '+e.message;
+  }finally{
+    btn.disabled=false;btn.style.opacity='1';
+  }
+}
+
+function renderScoreResult(s){
+  const el=document.getElementById('triStage2Result');
+  const sc=scoreClass(s.score);
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div class="score-num ${sc}" style="width:42px;height:42px;font-size:18px;display:flex;align-items:center;justify-content:center">${s.score??'—'}</div>
+      <div>
+        <div style="font-size:14px;font-weight:500">${esc(s.archetype||'no archetype')}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${s.ramp_cost?'ramp '+s.ramp_cost+' · ':''}comp ${s.comp_ok||'unknown'}</div>
+      </div>
+    </div>
+    ${s.score_reason?`<div style="font-size:12px;line-height:1.5;margin-bottom:12px">${esc(s.score_reason)}</div>`:''}
+    <button class="btn btn-g btn-sm" onclick="cm('triMo');switchTab('discover');loadDiscovered().then(renderDiscover)">View in Discover</button>
+  `;
+  el.style.display='block';
+}
+
+// ── CSV EXPORT ──
+function openExport(){
+  document.getElementById('ecp').innerHTML=ECOLS.map(c=>`<div class="eci ${selExp.has(c.key)?'sel':''}" onclick="togExp('${c.key}',this)"><input type="checkbox" ${selExp.has(c.key)?'checked':''} readonly> ${c.label}</div>`).join('');
+  document.getElementById('expMo').style.display='flex';
+}
+function togExp(k,el){if(selExp.has(k)){selExp.delete(k);el.classList.remove('sel');el.querySelector('input').checked=false}else{selExp.add(k);el.classList.add('sel');el.querySelector('input').checked=true}}
+function doExport(){
+  const cols=ECOLS.filter(c=>selExp.has(c.key));
+  const csv=[cols.map(c=>c.label).join(','),...jobs.map(j=>cols.map(c=>`"${String(j[c.key]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  dl(new Blob([csv],{type:'text/csv'}),`job-tracker-${today()}.csv`);
+  cm('expMo');
+}
+
+// ── JSON EXPORT ──
+function exportJSON(){
+  const payload={exportedAt:new Date().toISOString(),version:'hunt-v4',count:jobs.length,jobs};
+  dl(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),`job-tracker-backup-${today()}.json`);
+  toast(`Exported ${jobs.length} roles — save to Drive for backup`);
+}
+
+// ── COMPANY SCANS (inline links + list panel) ──
+async function loadCompanyScans(){
+  const {data,error}=await sb.from('company_scans').select('*').order('created_at',{ascending:false});
+  if(error){console.error('Company scans load error:',error);return}
+  companyScans=data||[];
+  scanByName={};
+  for(const s of companyScans){scanByName[(s.company_name||'').toLowerCase()]=s}
+}
+
+function refreshCompanyLinks(){render();if(activeTab==='discover')renderDiscover()}
+
+async function openScanModal(name){
+  if(!name)return;
+  const key=name.toLowerCase();
+  const existing=scanByName[key];
+  // Existing scan → open instantly, no cost, no prompt.
+  if(existing){
+    document.getElementById('scanMoTitle').textContent=name;
+    document.getElementById('scanMo').style.display='flex';
+    renderScanModalBody(existing);
+    return;
+  }
+  // No scan yet — this fires a live Stage 1 scan (web search, a few seconds, real
+  // API cost). Confirm before spending, so a stray click can't trigger one.
+  if(!confirm(`Run a live company scan for "${name}"?\n\nThis does a web search and may take a few seconds.`))return;
+  document.getElementById('scanMoTitle').textContent=name;
+  document.getElementById('scanMo').style.display='flex';
+  document.getElementById('scanMoBody').innerHTML='<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px">Running Stage 1 company scan…</div>';
+  try{
+    const res=await fetch('/company-scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({company_name:name})});
+    const data=await res.json();
+    if(!res.ok){document.getElementById('scanMoBody').innerHTML=`<div style="padding:16px 0;color:var(--s-rejected);font-size:13px">Scan failed: ${esc(data.error||String(res.status))}</div>`;return}
+    // Persisted columns only for the local cache; signals (if fresh) render once here.
+    const row={id:data.id,company_name:name,verdict:data.verdict,bottom_line:data.bottom_line,created_at:data.created_at||new Date().toISOString(),proceeded_to_score:false};
+    if(!scanByName[key]){companyScans.unshift(row);scanByName[key]=row}
+    renderScanModalBody(data);
+    refreshCompanyLinks();
+  }catch(e){
+    document.getElementById('scanMoBody').innerHTML=`<div style="padding:16px 0;color:var(--s-rejected);font-size:13px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderScanModalBody(d){
+  const up=d.verdict==='thumbs_up';
+  const icon=up?'👍':'👎';
+  const label=up?'Worth pursuing':'Pass';
+  const color=up?'var(--green)':'var(--s-rejected)';
+  const signals=[['What they do',d.what_they_do],['Financial health',d.financial_health],['Remote culture',d.remote_culture],['Red flags',d.red_flags]].filter(s=>s[1]);
+  const sigHtml=signals.length
+    ?`<div class="scan-sig-lbl">Signals</div>`+signals.map(s=>`<div class="scan-sig"><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')
+    :'';
+  const dateStr=d.created_at?fd(String(d.created_at).slice(0,10)):'';
+  document.getElementById('scanMoBody').innerHTML=`
+    <div class="scan-verdict" style="color:${color}"><span style="font-size:20px">${icon}</span>${label}</div>
+    ${d.bottom_line?`<div class="scan-bl">${esc(d.bottom_line)}</div>`:''}
+    ${sigHtml}
+    ${dateStr?`<div class="scan-date">scanned ${dateStr}</div>`:''}`;
+}
+
+function openScansList(){document.getElementById('scanSearch').value='';document.getElementById('scanPanelWrap').style.display='block';renderScansList()}
+function closeScansList(){document.getElementById('scanPanelWrap').style.display='none'}
+function renderScansList(){
+  const q=(document.getElementById('scanSearch').value||'').toLowerCase();
+  const rows=companyScans.filter(s=>!q||(s.company_name||'').toLowerCase().includes(q));
+  const el=document.getElementById('scanList');
+  if(!rows.length){el.innerHTML='<div class="scan-empty">No scans found.</div>';return}
+  el.innerHTML=rows.map(s=>`
+    <div class="scan-row" data-co="${escAttr(s.company_name)}">
+      <span class="scan-row-icon">${s.verdict==='thumbs_up'?'👍':'👎'}</span>
+      <div class="scan-row-main">
+        <div class="scan-row-co">${esc(s.company_name)}</div>
+        <div class="scan-row-bl">${esc(s.bottom_line||'')}</div>
+      </div>
+      <div class="scan-row-date">${fd(String(s.created_at||'').slice(0,10))}</div>
+    </div>`).join('');
+}
+
+// ── EXPORT DROPDOWN ──
+function toggleExportMenu(e){e.stopPropagation();document.getElementById('expMenu').classList.toggle('open')}
+function closeExportMenu(){document.getElementById('expMenu').classList.remove('open')}
+
+// ── DISMISS REASONS (Settings management) ──
+function renderDismissReasons(){
+  const el=document.getElementById('dismissReasonList');
+  if(!el)return;
+  if(!profileDismissReasons.length){el.innerHTML='<div style="font-size:12px;color:var(--text-light);font-style:italic">No dismiss reasons — add one below.</div>';return}
+  el.innerHTML=profileDismissReasons.map((r,i)=>`
+    <div class="dr-row">
+      <span class="dr-label">${esc(r.label)}</span>
+      <span class="dr-value">${esc(r.value)}</span>
+      <button class="dr-remove" type="button" onclick="deleteDismissReason(${i})">×</button>
+    </div>`).join('');
+}
+function addDismissReason(){
+  const v=document.getElementById('newReasonValue').value.trim();
+  const l=document.getElementById('newReasonLabel').value.trim();
+  if(!v||!l){alert('Both value and label are required.');return}
+  if(profileDismissReasons.some(r=>r.value===v)){alert('That value already exists.');return}
+  profileDismissReasons.push({value:v,label:l});
+  document.getElementById('newReasonValue').value='';
+  document.getElementById('newReasonLabel').value='';
+  renderDismissReasons();
+}
+function deleteDismissReason(i){profileDismissReasons.splice(i,1);renderDismissReasons()}
+
+// ── CLICK DELEGATION ──
+// Capture phase so a company-name click inside a clickable tracker row opens the
+// scan modal instead of the row detail.
+document.addEventListener('click',e=>{
+  const link=e.target.closest('.co-link');
+  if(link){e.stopPropagation();e.preventDefault();openScanModal(link.dataset.co)}
+},true);
+document.addEventListener('click',e=>{
+  const row=e.target.closest('.scan-row');
+  if(row){closeScansList();openScanModal(row.dataset.co);return}
+  if(!e.target.closest('.exp-wrap'))closeExportMenu();
+});
+
+// ── UTILS ──
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}
+function today(){return new Date().toISOString().split('T')[0]}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+function cm(id){document.getElementById(id).style.display='none'}
+function oco(e,id){if(e.target===document.getElementById(id))cm(id)}
+</script>
+</body>
+</html>
