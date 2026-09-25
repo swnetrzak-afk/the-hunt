@@ -685,6 +685,16 @@ const SUPABASE_KEY = 'YOUR_SUPABASE_PUBLISHABLE_KEY';          // publishable (a
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Calls our Netlify Functions with the signed-in user's access token — every
+// function endpoint rejects callers without one (netlify/functions/lib/auth.js).
+// getSession() refreshes an expired token before we send it.
+async function apiFetch(path,opts={}){
+  const {data:{session}}=await sb.auth.getSession();
+  const headers={...(opts.headers||{})};
+  if(session)headers.Authorization=`Bearer ${session.access_token}`;
+  return fetch(path,{...opts,headers});
+}
+
 const ECOLS=[
   {key:'title',label:'Job Title'},{key:'company',label:'Company'},{key:'dateApplied',label:'Date Applied'},
   {key:'status',label:'Status'},{key:'remote',label:'Remote'},{key:'comp',label:'Compensation'},
@@ -914,7 +924,7 @@ async function openAddFromDiscovered(discoveredId){
   if(j.jd&&j.jd.trim()){
     toast('Extracting JD…');
     try{
-      const res=await fetch('/extract-jd',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jd:j.jd,url:j.url||'',sourceCompany:j.company||''})});
+      const res=await apiFetch('/extract-jd',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jd:j.jd,url:j.url||'',sourceCompany:j.company||''})});
       const ex=await res.json();
       if(res.ok){
         const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v};
@@ -980,7 +990,7 @@ async function extractJD(){
   btn.disabled=true;btn.style.opacity='.5';status.textContent='extracting...';
   try{
     const sourceUrl=document.getElementById('fu').value.trim();
-    const res=await fetch('/extract-jd',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jd:raw,url:sourceUrl})});
+    const res=await apiFetch('/extract-jd',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jd:raw,url:sourceUrl})});
     const j=await res.json();
     if(!res.ok){status.textContent='error: '+(j.error||res.status);return}
     const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v};
@@ -1222,7 +1232,7 @@ async function confirmDismiss(){
 
 async function rescoreJob(id){
   toast('Re-scoring...');
-  const res=await fetch('/score-job',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({job_id:id,source:'rescore'})});
+  const res=await apiFetch('/score-job',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({job_id:id,source:'rescore'})});
   const data=await res.json();
   if(!res.ok){toast('Score failed: '+(data.error||res.status));return}
   // Update local state
@@ -1368,7 +1378,7 @@ async function discoverCompanies(){
   }
   if(stat)stat.textContent='Starting discovery...';
   try{
-    const res=await fetch('/discover-companies',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    const res=await apiFetch('/discover-companies',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     if(res.ok||res.status===202){
       if(stat)stat.textContent='Running — reopen Settings in ~1–2 min';
       toast('Discovery started — new matches will appear as disabled companies');
@@ -1395,7 +1405,7 @@ async function triggerFetch(){
   setStatus('Starting fetch...');
   const clickMs=Date.now();
   try{
-    const res=await fetch('/run-fetch',{method:'POST'});
+    const res=await apiFetch('/run-fetch',{method:'POST'});
     if(res.ok||res.status===202){
       setStatus('Running…');
       toast('Fetch started — watching for completion');
@@ -1464,7 +1474,7 @@ async function runCompanyScan(){
   btn.disabled=true;btn.style.opacity='.5';
   stat.textContent='Scanning...';
   try{
-    const res=await fetch('/company-scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({company_name:company})});
+    const res=await apiFetch('/company-scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({company_name:company})});
     const data=await res.json();
     if(!res.ok){stat.textContent='Error: '+(data.error||res.status);return}
     triageScanRow=data;
@@ -1532,7 +1542,7 @@ async function runRoleScore(){
     if(ins.error){stat.textContent='Insert failed: '+ins.error.message;return}
     const newJobId=ins.data.id;
 
-    const res=await fetch('/score-job',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({job_id:newJobId,source:'manual'})});
+    const res=await apiFetch('/score-job',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({job_id:newJobId,source:'manual'})});
     const score=await res.json();
     if(!res.ok){stat.textContent='Scoring failed: '+(score.error||res.status);return}
 
@@ -1615,7 +1625,7 @@ async function openScanModal(name){
   document.getElementById('scanMo').style.display='flex';
   document.getElementById('scanMoBody').innerHTML='<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px">Running Stage 1 company scan…</div>';
   try{
-    const res=await fetch('/company-scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({company_name:name})});
+    const res=await apiFetch('/company-scan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({company_name:name})});
     const data=await res.json();
     if(!res.ok){document.getElementById('scanMoBody').innerHTML=`<div style="padding:16px 0;color:var(--s-rejected);font-size:13px">Scan failed: ${esc(data.error||String(res.status))}</div>`;return}
     // Persisted columns only for the local cache; signals (if fresh) render once here.

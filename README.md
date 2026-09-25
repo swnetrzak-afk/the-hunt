@@ -166,7 +166,8 @@ A tracked company returning zero jobs is usually normal (no open roles right now
   │  │      Function (manual "Fetch now")     │
   │  └─ nightly-fetch   ◄── Scheduled (9am)  │
   │         async-fires the background func   │
-  │      (all outbound calls: fetchWithRetry) │
+  │      (every function: authorize() first;  │
+  │       all outbound calls: fetchWithRetry) │
   │         │                                 │
   │         │ x-api-key                       │
   │         ▼                                 │
@@ -247,6 +248,7 @@ netlify/functions/discover-companies-background.js  → paste/auto-suggest → d
 netlify/functions/fetch-jobs-background.js          → background wrapper → runs lib/run-fetch
 netlify/functions/nightly-fetch.js                  → scheduled function (9am UTC) → fires background func
 netlify/functions/lib/run-fetch.js                  → fetch + filter + score pipeline
+netlify/functions/lib/auth.js                       → authorize(): caller auth for every function endpoint
 netlify/functions/lib/http.js                       → shared fetchWithRetry (one retry policy for all sources)
 netlify/functions/lib/discover.js                   → company-discovery: ATS slug probe + web_search fallback
 netlify/functions/lib/score.js                      → shared scoreJob() + writeJobScore()
@@ -271,6 +273,11 @@ README.md                                           → this file
 - The "anon" / "publishable" Supabase key is in the HTML and safe to publish — RLS is what actually protects data.
 - The `service_role` key is used only by server-side Netlify Functions, never in client code. Set it in Netlify env vars.
 - New-user signups should be **disabled** in the Supabase dashboard after you create your account. The login form is then sign-in only.
+
+**Function endpoints are authenticated too.** RLS covers the browser's database queries, but the Netlify Functions use the service key and spend Anthropic credits, so each one calls `authorize()` (`lib/auth.js`) before doing any work:
+
+- **Browser → function:** `apiFetch()` in `index.html` attaches the session token. `authorize` validates it with Supabase Auth, then requires the caller to own the `user_profile` row. That way an account created by mistake still can't drive the system.
+- **Nightly trigger → pipeline:** `nightly-fetch` has no user session, so it sends an HMAC token keyed by `SUPABASE_SERVICE_KEY`. That needs no extra env var, and the key itself never goes over the wire. Only `fetch-jobs-background` accepts it.
 
 ---
 
@@ -311,8 +318,8 @@ Set in Netlify → Site settings → Environment variables. Never in the repo.
 | Var | Used by | Notes |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | All functions | `sk-ant-...` |
-| `SUPABASE_URL` | Server-side functions | Project URL |
-| `SUPABASE_SERVICE_KEY` | Server-side functions | Secret key — bypasses RLS for server-side writes |
+| `SUPABASE_URL` | All functions | Project URL. Also used for caller auth. |
+| `SUPABASE_SERVICE_KEY` | All functions | Secret key. Bypasses RLS for server-side writes, and keys the nightly trigger's internal token. If you rotate it, redeploy. |
 | `SCORING_PROMPT` | `fetch-jobs-background`, `score-job` | The scoring system prompt. Multi-line. Edit here to update scoring without a deploy. Fail-hard if unset. |
 | `SCORING_MODEL_NIGHTLY` | `fetch-jobs-background` | Optional. Defaults to `claude-haiku-4-5`. |
 | `SCORING_MODEL_RESCORE` | `score-job` | Optional. Defaults to `claude-sonnet-4-6`. |

@@ -22,6 +22,7 @@ import {
   DEFAULT_DISCOVER_PROMPT, generateCandidates, detectAts, probeSlug,
   webSearchAts, relevanceCheck,
 } from './lib/discover.js';
+import { authorize } from './lib/auth.js';
 
 const MAX_CANDIDATES = 40;
 const WEB_SEARCH_CAP = 15;
@@ -32,6 +33,13 @@ export default async (req) => {
 
   const env = getEnv();
   if (!env.supabaseUrl || !env.supabaseServiceKey) return json({ error: 'Supabase not configured' }, 500);
+  // Background function: Netlify has already answered 202, so a rejection here
+  // just stops the work (and is visible in the function logs).
+  const auth = await authorize(req, env);
+  if (!auth.ok) {
+    console.warn(`discover-companies: rejected caller (${auth.status} ${auth.error})`);
+    return json({ error: auth.error }, auth.status);
+  }
   if (!env.anthropicKey) return json({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
 
   // Prompt env var with logged fallback — so the feature works without setup, but

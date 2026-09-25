@@ -9,6 +9,8 @@
 // Required env vars: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY,
 //                    COMPANY_SCAN_PROMPT
 
+import { authorize } from './lib/auth.js';
+
 export default async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
@@ -18,6 +20,8 @@ export default async (req) => {
   const scanPrompt = Netlify.env.get('COMPANY_SCAN_PROMPT');
 
   if (!supabaseUrl || !supabaseServiceKey) return json({ error: 'Supabase not configured' }, 500);
+  const auth = await authorize(req, { supabaseUrl, supabaseServiceKey });
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
   if (!apiKey) return json({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
   if (!scanPrompt || !scanPrompt.trim()) {
     console.error('COMPANY_SCAN_PROMPT env var not set');

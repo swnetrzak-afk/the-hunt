@@ -8,6 +8,7 @@
 // and rescore path are guaranteed to use the same prompt with no drift.
 
 import { scoreJob, writeJobScore } from './lib/score.js';
+import { authorize } from './lib/auth.js';
 
 export default async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -18,6 +19,8 @@ export default async (req) => {
   const scoringPrompt = Netlify.env.get('SCORING_PROMPT');
 
   if (!supabaseUrl || !supabaseServiceKey) return json({ error: 'Supabase not configured' }, 500);
+  const auth = await authorize(req, { supabaseUrl, supabaseServiceKey });
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
   if (!apiKey) return json({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
   if (!scoringPrompt || !scoringPrompt.trim()) {
     console.error('SCORING_PROMPT env var not set');

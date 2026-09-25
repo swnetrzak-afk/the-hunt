@@ -195,6 +195,7 @@ A local run writes to the same Supabase project as production. There is no separ
 - **RLS** limits the browser to your own rows. The publishable key being public is by design.
 - **The service key** lives only in Netlify env vars. Server-side functions use it and set `user_id` explicitly on every insert.
 - **Disable signups** after your first sign-in (step 6).
+- **Every function endpoint requires the owner's session.** The app sends your Supabase session token with each call, and each function checks that token and confirms you own the profile before doing any work. The nightly trigger authenticates with an internal token derived from `SUPABASE_SERVICE_KEY`, so that key must be the same for every function. If you rotate it, update it and redeploy.
 
 ---
 
@@ -210,5 +211,8 @@ A local run writes to the same Supabase project as production. There is no separ
 | Jobs appear but have no scores | The model didn't return the JSON shape above. The logs show `score JSON parse failed` with the raw response. |
 | Triage scan returns an error | `COMPANY_SCAN_PROMPT` is unset, the model returned an invalid `verdict`, or web search isn't enabled for your Anthropic organization. |
 | A function reports an env var as missing after you set it | Trigger a redeploy (step 5). |
+| App actions fail with "Not signed in" / "Invalid or expired session" (401) | Sign out and back in. |
+| A function returns 403 "Not authorized" | You're signed in with an account that doesn't own the profile. Use the email you set up with. |
+| Fetch now or the nightly run does nothing; logs show `rejected caller` | The call failed authentication. For the nightly run, check that `SUPABASE_SERVICE_KEY` is set and redeploy. |
 
 For day-to-day troubleshooting and how to change things once you're running, see the README's [When something breaks](README.md#when-something-breaks) and [How to change things](README.md#how-to-change-things).

@@ -7,10 +7,12 @@
 // source-API names are often abbreviated, parent-company, or missing, which also
 // hurts the (company + title) dedup check on the nightly pipeline.
 //
-// Requires Netlify env var: ANTHROPIC_API_KEY
+// Requires Netlify env vars: ANTHROPIC_API_KEY, plus SUPABASE_URL +
+// SUPABASE_SERVICE_KEY for caller auth (lib/auth.js).
 // (Set in Netlify dashboard → Site settings → Environment variables.)
 
 import { fetchWithRetry } from "./lib/http.js";
+import { authorize } from "./lib/auth.js";
 
 const SYSTEM_PROMPT = `You extract structured fields from job descriptions for a personal job tracker.
 
@@ -37,6 +39,12 @@ export default async (req) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
+
+  const auth = await authorize(req, {
+    supabaseUrl: Netlify.env.get("SUPABASE_URL"),
+    supabaseServiceKey: Netlify.env.get("SUPABASE_SERVICE_KEY"),
+  });
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
 
   const apiKey = Netlify.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
