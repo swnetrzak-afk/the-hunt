@@ -94,9 +94,6 @@ One saved company scan per company. Clicking a company name anywhere in the app 
 ## Setup
 
 One-time setup takes about an hour. See **SETUP.md** for the full walkthrough — Supabase project, schema files (run in order), Netlify deploy, environment variables.
-
-> **Note:** SETUP.md is being rewritten for the full system. The current version covers the original tracker only; the [Architecture](#architecture), [Files](#files), and [Environment variables](#environment-variables) sections below cover the rest in the meantime.
-
 There are more moving parts than the simple tracker version, and scoring won't work until you've set your candidate profile in Settings and your scoring and company-scan prompts in Netlify env vars.
 
 The one ongoing cost: Netlify Personal plan (~$9/mo). The nightly background function runs for several minutes; the free tier runtime limit is easily exceeded in normal daily use. Everything else runs on free tiers or pay-as-you-go at low volume.
