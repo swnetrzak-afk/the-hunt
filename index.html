@@ -1284,15 +1284,26 @@ async function saveProfile(){
   if(!profileText){alert('Profile text is required.');return}
   if(!keywords.length){alert('Add at least one search keyword.');return}
 
-  const {error}=await sb.from('user_profile').upsert({
-    user_id:currentUser.id,
+  const fields={
     profile_text:profileText,
     search_keywords:keywords,
     title_filter_positive:tpos,
     title_filter_negative:tneg,
     comp_floor:compFloor,
     dismiss_reasons:profileDismissReasons,
-  },{onConflict:'user_id'});
+  };
+
+  // Plain UPDATE, not upsert: an upsert's insert row is checked against NOT NULL
+  // columns (e.g. timezone, migration 014) before Postgres sees the row exists,
+  // and this form doesn't carry every column. First run (no row yet) inserts;
+  // after 014 that insert must include timezone, so it fails loudly by design.
+  let error,data;
+  if(userProfile){
+    ({error,data}=await sb.from('user_profile').update(fields).eq('user_id',currentUser.id).select('user_id'));
+    if(!error&&(!data||data.length!==1))error={message:`expected to update 1 profile row, updated ${data?data.length:0}`};
+  }else{
+    ({error}=await sb.from('user_profile').insert({user_id:currentUser.id,...fields}));
+  }
 
   if(error){alert('Save failed: '+error.message);return}
   userProfile={...(userProfile||{}),profile_text:profileText,search_keywords:keywords,title_filter_positive:tpos,title_filter_negative:tneg,comp_floor:compFloor,dismiss_reasons:profileDismissReasons};
