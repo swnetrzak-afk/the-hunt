@@ -355,7 +355,7 @@ Serves at `http://localhost:8888` and runs functions locally. Requires a `.env` 
 
 Git push to main → Netlify auto-deploys (~1 min). Function changes take effect on the same push. The scheduled function picks up any changes on the next run.
 
-**Prompt changes don't require a deploy** — `SCORING_PROMPT` and `COMPANY_SCAN_PROMPT` are read at function-invocation time. Edit the env var in Netlify, save, and the next call uses the new prompt.
+**Prompt changes require an empty deploy** — `SCORING_PROMPT` and `COMPANY_SCAN_PROMPT` are read at function-invocation time. Edit the env var in Netlify, save, then trigger a "retry with latest branch commit" from the latest production deploy. New run will use the updated prompt.
 
 To roll back: Netlify → Deploys → pick a previous deploy → **Publish deploy**. Note: env var changes are not part of the deploy artifact — rolling back code does not roll back prompt changes.
 
