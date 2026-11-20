@@ -34,7 +34,7 @@ Designed for personal use — one instance per deploy, configured to your backgr
 - [Data model](#data-model)
 - [Environment variables](#environment-variables)
 - [Local development](#local-development)
-- [Deployment](#deployment)
+- [ment](#deployment)
 - [When something breaks](#when-something-breaks)
 - [How to change things](#how-to-change-things)
 
@@ -293,7 +293,7 @@ Each job goes through scoring at two possible points:
 
 **Re-score (Sonnet):** On demand, via the Re-score button on any Discover card. Uses the stronger model for cases where the nightly score doesn't match your read. Both scores are kept in `job_scores` with model provenance. The Discover toolbar has a "show original scores" toggle to compare them.
 
-The scoring prompt lives in the Netlify environment variable `SCORING_PROMPT`, not in the codebase. Edit it in the Netlify dashboard and it takes effect on the next run — no deploy needed. The candidate profile lives in Settings, same deal.
+The scoring prompt lives in the Netlify environment variable `SCORING_PROMPT`, not in the codebase, so no code change is needed. The candidate profile lives in Settings, same deal.
 
 ---
 
@@ -391,10 +391,10 @@ To roll back: Netlify → Deploys → pick a previous deploy → **Publish deplo
 
 | Change | Where |
 |---|---|
-| Tune scoring prompt | Netlify env vars → `SCORING_PROMPT`. No deploy needed. |
+| Tune scoring prompt | Netlify env vars → `SCORING_PROMPT`. Run empty deploy from last prod version. |
 | Tune candidate profile | Settings → edit profile text → Save. Next run uses it. |
 | Tune company scan prompt | Netlify env vars → `COMPANY_SCAN_PROMPT`. No deploy needed. |
-| Switch scoring model | Netlify env vars → `SCORING_MODEL_NIGHTLY` / `SCORING_MODEL_RESCORE`. No deploy needed. |
+| Switch scoring model | Netlify env vars → `SCORING_MODEL_NIGHTLY` / `SCORING_MODEL_RESCORE`. Run empty deploy from last prod version. |
 | Change score display threshold | `index.html` → `<select id="dscoreF">` → change default `<option>`. |
 | Add a new tracked company | Settings → Tracked Companies → fill name + URL → Add. |
 | Change search keywords or title filter | Settings → edit keywords / Required / Excluded → Save. |
@@ -414,7 +414,7 @@ To roll back: Netlify → Deploys → pick a previous deploy → **Publish deplo
 - **Serverless functions are the right home for API keys.** Browser code can't be trusted with secrets; functions can.
 - **The scheduled/background function split is load-bearing.** Netlify does not support a single function that is both scheduled and background. The schedule lives on `nightly-fetch` only; it fires `fetch-jobs-background`, which does the actual work. Collapsing them back into one silently no-ops the scheduled run and returns 403 on the manual button.
 - **Prompt caching is worth the setup.** Scoring hundreds of jobs nightly against the same profile means paying the cache write premium once and reading at 0.1× for the rest of the run. The cost savings are real; the more important property is consistency — every job in a run is scored against exactly the same context.
-- **Scoring prompts live in env vars by design.** Being able to tune scoring without a deploy is a real operational benefit. The prompts are the most-iterated part of the system — treating them as configuration rather than code reflects how they're actually used.
+- **Scoring prompts live in env vars by design.** Being able to tune scoring without a code change is a real operational benefit. The prompts are the most-iterated part of the system — treating them as configuration rather than code reflects how they're actually used.
 - **Two models, one decision:** Haiku for volume, Sonnet for judgment. Nuanced role-fit reasoning — whether the actual scope, culture, and trajectory of a role match what you're looking for — benefits from the stronger model. Nightly first-pass scoring at scale does not.
 
 ---
@@ -425,7 +425,7 @@ The system grew in distinct phases, each addressing a real limitation.
 
 **v1 — tracker only.** Single `jobs` table, magic-link auth, JD extraction via Claude. One Netlify function. Runs entirely on free tiers. The simple version is still available as a separate repo — see below.
 
-**v2 — discovery pipeline.** Added the Discover tab with nightly job fetching from Adzuna, JSearch, and Built In. Scoring against a candidate profile using Claude Haiku. Manual triage flow for roles found outside the pipeline, with a company scan stage powered by Sonnet and web search. The scoring prompt moved to Netlify env vars so it could be tuned without a deploy. Ramp cost added to scoring output. Tracked companies added with direct ATS feeds (Greenhouse, Lever, Ashby).
+**v2 — discovery pipeline.** Added the Discover tab with nightly job fetching from Adzuna, JSearch, and Built In. Scoring against a candidate profile using Claude Haiku. Manual triage flow for roles found outside the pipeline, with a company scan stage powered by Sonnet and web search. The scoring prompt moved to Netlify env vars so it could be tuned without a code change. Ramp cost added to scoring output. Tracked companies added with direct ATS feeds (Greenhouse, Lever, Ashby).
 
 **v2.5 — score history.** The `job_scores` table replaced in-place scoring columns on `discovered_jobs`, keeping every scoring event with model provenance. `scoreJob()` consolidated into a shared lib used by both the nightly path and on-demand re-score. Scoring model configurable via env var. Discover gained a side-by-side score comparison view (Haiku vs. Sonnet).
 
