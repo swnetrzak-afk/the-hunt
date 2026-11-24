@@ -25,7 +25,7 @@ import { detectLever, fetchLever } from '../providers/lever.js';
 import { detectAshby, fetchAshby } from '../providers/ashby.js';
 import { scoreJob, writeJobScore } from './score.js';
 import { normalizeComp } from './comp.js';
-import { resolveCompanyFromJd } from './company.js';
+import { resolveCompanyFromJd, normalizeCompanyName } from './company.js';
 import { fetchWithRetry } from './http.js';
 
 const PROVIDERS = {
@@ -80,7 +80,8 @@ export async function runFetch(env) {
   //                                          role is posted N times for N cities
   const existing = await sbGetAll(env, 'discovered_jobs', 'select=source,external_id,title,company');
   const seenIds = new Set(existing.map(r => `${r.source}:${r.external_id}`));
-  const seenRoles = new Set(existing.map(r => roleKey(r.company, r.title)));
+  const seenRoles = new RoleIndex();
+  for (const r of existing) seenRoles.add(r.company, r.title);
   console.log(`${seenIds.size} existing rows, ${seenRoles.size} unique roles`);
 
   const cutoff = new Date();
@@ -92,15 +93,14 @@ export async function runFetch(env) {
 
   const accept = (job, idKey, extras = {}) => {
     if (seenIds.has(idKey)) return false;
-    const rk = roleKey(job.company, job.title);
-    if (seenRoles.has(rk)) return false;
+    if (seenRoles.has(job.company, job.title)) return false;
     if (!isLocationEligible(job)) return false;
     if (!passesTitleFilter(job.title, positiveTitles, negativeTitles)) {
       titleFilteredOut++;
       return false;
     }
     seenIds.add(idKey);
-    seenRoles.add(rk);
+    seenRoles.add(job.company, job.title);
     Object.assign(job, extras);
     return true;
   };
@@ -133,10 +133,9 @@ export async function runFetch(env) {
           const { company } = await resolveCompanyFromJd(env, j.jd, j.company);
           j.company = company;
         }
-        const rk = roleKey(j.company, j.title);
-        if (seenRoles.has(rk)) continue;
+        if (seenRoles.has(j.company, j.title)) continue;
         seenIds.add(idKey);
-        seenRoles.add(rk);
+        seenRoles.add(j.company, j.title);
         newJobs.push(j);
       }
     }
@@ -919,13 +918,51 @@ function passesTitleFilter(title, positive, negative) {
   return false;
 }
 
-function roleKey(company, title) {
-  const norm = s => (s || '')
+// Role dedup (company + title), tolerant of company-name variants.
+// Two rows are the same role when the titles match after normalizing and one
+// company name is a word-prefix of the other once legal suffixes and domain
+// endings are dropped: "Aya" = "Aya Healthcare" = "Aya Healthcare Inc.",
+// "Lyric" = "Lyric, Inc.", "Jerry" = "Jerry.ai". Any existing row counts,
+// dismissed ones included, so a dismissed role can't come back under a new name.
+function normRoleTitle(title) {
+  return (title || '')
     .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\(\s*remote[^)]*\)/g, ' ')
+    .replace(/[-\u2013,]\s*remote\s*$/, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
     .trim();
-  return `${norm(company)}|${norm(title)}`;
+}
+
+function companyWords(company) {
+  return normalizeCompanyName(company)
+    .toLowerCase()
+    .replace(/\.(com|ai|io|org|co)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+class RoleIndex {
+  constructor() { this.full = new Set(); this.prefixes = new Set(); }
+  get size() { return this.full.size; }
+  add(company, title) {
+    const t = normRoleTitle(title);
+    const w = companyWords(company);
+    this.full.add(`${w.join(' ')}|${t}`);
+    for (let i = 1; i <= w.length; i++) this.prefixes.add(`${w.slice(0, i).join(' ')}|${t}`);
+  }
+  has(company, title) {
+    const t = normRoleTitle(title);
+    const w = companyWords(company);
+    // new name is a seen name, or a prefix of one ("Aya" vs seen "Aya Healthcare")
+    if (this.prefixes.has(`${w.join(' ')}|${t}`)) return true;
+    // a seen name is a prefix of the new one ("Aya Healthcare" vs seen "Aya")
+    for (let i = 1; i < w.length; i++) {
+      if (this.full.has(`${w.slice(0, i).join(' ')}|${t}`)) return true;
+    }
+    return false;
+  }
 }
 
 function isLocationEligible(job) {
